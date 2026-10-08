@@ -418,16 +418,11 @@ form.addEventListener('submit', async event => {
 });
 
 $('fantasiePaar').addEventListener('click', () => {
-  const vornamen = ['Anton', 'Berta', 'Clara', 'Dieter', 'Ella', 'Felix', 'Greta', 'Hannes', 'Ida', 'Juri', 'Karla', 'Lukas', 'Mara', 'Nora', 'Oskar', 'Paula', 'Quentin', 'Rita', 'Sven', 'Tina', 'Uwe', 'Vera', 'Willi', 'Zoe', 'Benno', 'Dora', 'Emil', 'Frida', 'Kai', 'Lotte', 'Nils', 'Sascha'];
-  const spitznamen = ['Aufschlag-Ass', 'Block-Bändigerin', 'Chop-Champion', 'Drehwurm', 'Effet-Expertin', 'Flip-Flieger', 'Gegenschnitt-Göttin', 'Halbdistanz-Held', 'Impuls-Idee', 'Joker am Tisch', 'Kanten-Königin', 'Loop-Legende', 'Matchball-Magierin', 'Netzroller-Ninja', 'Oberschnitt-Orakel', 'Pingpong-Pilotin', 'Querball-Querdenker', 'Rallye-Rakete', 'Schmetter-Schreck', 'Topspin-Tänzerin', 'Unterschnitt-Urgestein', 'Vorhand-Virtuosin', 'Wieselflink', 'Zauberball-Zarin', 'Ballonabwehr-Boss', 'Doppel-Dompteurin', 'Endlos-Rallye', 'Fünfsatz-Furie', 'Konter-Kapitän', 'Linienball-Lady', 'Noppen-Nomade', 'Satzball-Spezialist'];
+  const kandidaten = ['Anna', 'Ben', 'Clara', 'David', 'Eva', 'Felix', 'Greta', 'Hannes', 'Ida', 'Jonas', 'Klara', 'Lukas', 'Mara', 'Noah', 'Olivia', 'Paul', 'Amelie', 'Bruno', 'Carlotta', 'Daniel', 'Elena', 'Finn', 'Hanna', 'Jakob', 'Lea', 'Max', 'Nina', 'Oskar', 'Pia', 'Rafael', 'Sarah', 'Theo', 'Ulla', 'Viktor', 'Wilma', 'Yannik', 'Zoe', 'Alina', 'Bastian', 'Celine', 'Dominik', 'Elisa', 'Fabian', 'Gisela', 'Henrik', 'Ines', 'Julian', 'Katharina', 'Leon', 'Miriam', 'Niklas', 'Ophelia', 'Philipp', 'Ronja', 'Sebastian', 'Tabea', 'Ulrich', 'Valerie', 'Werner', 'Xenia', 'Yara', 'Zora', 'Moritz', 'Sophie'];
   const verwendet = new Set([...paare.querySelectorAll('input')].map(input => input.value.trim().toLocaleLowerCase('de')).filter(Boolean));
   let ziel = [...paare.children].find(paar => [...paar.querySelectorAll('input')].every(input => !input.value.trim()));
   if (!ziel && paare.children.length < 32) { addPaar(); ziel = paare.lastElementChild; }
   if (!ziel) { meldung('Alle 32 Doppelpaare sind bereits belegt.'); return; }
-  const kandidaten = Array.from({ length: 64 }, (_, index) => {
-    const runde = Math.floor(index / vornamen.length);
-    return `${vornamen[index % vornamen.length]} „${spitznamen[(index + runde * 11) % spitznamen.length]}“`;
-  });
   const freieNamen = kandidaten.filter(name => !verwendet.has(name.toLocaleLowerCase('de'))).slice(0, 2);
   if (freieNamen.length < 2) { meldung('Es sind keine weiteren Fantasienamen verfügbar.'); return; }
   [...ziel.querySelectorAll('input')].forEach((input, index) => { input.value = freieNamen[index]; });
