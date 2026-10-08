@@ -183,6 +183,14 @@ const renderDetails = () => {
   const names = new Map(turnier.teilnehmer.map(item => [item.id, item.name]));
   const fortschritt = turnierFortschritt(turnier);
   const kopf = el('div', undefined, 'turnier-kopf toolbar');
+  const kopfAktionen = el('div', undefined, 'toolbar');
+  const umbenennen = el('button', 'Umbenennen', 'secondary'); umbenennen.type = 'button';
+  umbenennen.addEventListener('click', () => {
+    const titel = window.prompt('Neuer Turniername:', turnier.titel);
+    if (titel === null || titel.trim() === turnier.titel) return;
+    if (!titel.trim()) { meldung('Bitte einen Turniernamen eingeben.'); return; }
+    void mutation(`umbenennen&turnier=${turnier.id}`, { version: turnier.version, titel: titel.trim() }, 'Turnier umbenannt.');
+  });
   const istTestturnier = turnier.titel.trim().toLocaleLowerCase('de') === 'testturnier';
   const loeschen = el('button', istTestturnier ? 'Testturnier löschen' : 'Turnier löschen', 'danger'); loeschen.type = 'button';
   loeschen.addEventListener('click', async () => {
@@ -197,7 +205,8 @@ const renderDetails = () => {
     } catch (error) { meldung(error.message); }
     finally { setBusy(false); }
   });
-  kopf.append(el('h2', turnier.titel), loeschen);
+  kopfAktionen.append(umbenennen, loeschen);
+  kopf.append(el('h2', turnier.titel), kopfAktionen);
   details.append(kopf, el('p', `${modusName(turnier.modus)} · ${turnier.teilnehmer.length} Doppelpaare · ${fortschritt.fertig} von ${fortschritt.gesamt} Spielen abgeschlossen`, 'muted'));
 
   const erfassung = el('label', undefined, 'erfassungsart');

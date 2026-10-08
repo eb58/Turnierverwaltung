@@ -261,6 +261,16 @@ try {
         }, true);
         respond($result);
     }
+    if ($method === 'PUT' && $action === 'umbenennen') {
+        $payload = body(); $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT);
+        $result = withStore(function (array &$turniere) use ($payload, $id): array {
+            $index = turnierIndex($turniere, (int) $id); pruefeVersion($turniere[$index], $payload);
+            $turniere[$index]['titel'] = text($payload['titel'] ?? null, 100, 'einen Turniernamen');
+            $turniere[$index]['version']++;
+            return ['turnier' => $turniere[$index]];
+        }, true);
+        respond($result);
+    }
     if ($method === 'PUT' && $action === 'tische') {
         $payload = body(); $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT);
         $result = withStore(function (array &$turniere) use ($payload, $id): array {
