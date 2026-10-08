@@ -179,6 +179,13 @@ const rundenTitel = (turnier, index) => {
     : `Runde ${index + 1}`;
 };
 
+const tischText = (turnier, termin, anzahlSpiele) => {
+  if (!turnier.anzahlTische) return 'Tisch noch offen';
+  const tisch = termin % turnier.anzahlTische + 1;
+  if (anzahlSpiele <= turnier.anzahlTische) return `Tisch ${tisch}`;
+  return `Spielblock ${Math.floor(termin / turnier.anzahlTische) + 1} · Tisch ${tisch}`;
+};
+
 const renderBeamer = turnier => {
   const names = new Map(turnier.teilnehmer.map(item => [item.id, item.name]));
   const fortschritt = turnierFortschritt(turnier);
@@ -192,15 +199,16 @@ const renderBeamer = turnier => {
     details.append(el('h3', `${index === aktuell ? 'Aktuell' : 'Danach'}: ${rundenTitel(turnier, index)}`));
     const grid = el('div', undefined, 'beamer-spiele');
     let termin = 0;
+    const anzahlSpiele = runde.filter(spiel => spiel.status !== 'freilos').length;
     for (const spiel of runde) {
+      const spielTermin = spiel.status === 'freilos' ? null : termin++;
       const card = el('article', undefined, 'spiel');
       card.append(el('p', `${names.get(spiel.a) ?? 'Sieger der Vorrunde'} – ${names.get(spiel.b) ?? (spiel.status === 'freilos' ? 'Freilos' : 'Sieger der Vorrunde')}`, 'paarung'));
       if (spiel.status === 'fertig') card.append(el('p', `Ergebnis ${spiel.punkteA}:${spiel.punkteB}`, 'erfolg'));
       else if (spiel.status === 'freilos') card.append(el('p', 'Automatisch weiter', 'muted'));
       else if (spiel.status === 'wartet') card.append(el('p', 'Vorherige Spiele noch offen', 'muted'));
       else {
-        card.append(el('p', turnier.anzahlTische ? `Durchgang ${Math.floor(termin / turnier.anzahlTische) + 1} · Tisch ${termin % turnier.anzahlTische + 1}` : 'Tisch noch offen', 'muted'));
-        termin++;
+        card.append(el('p', tischText(turnier, spielTermin, anzahlSpiele), 'muted'));
       }
       grid.append(card);
     }
@@ -283,11 +291,12 @@ const renderDetails = () => {
       if (pause.length) spiele.append(el('p', `Pause: ${pause.map(item => item.name).join(', ')}`, 'muted'));
     }
     let termin = 0;
+    const anzahlSpiele = runde.filter(spiel => spiel.status !== 'freilos').length;
     for (const spiel of runde) {
       const card = el('article', undefined, 'spiel');
       card.append(el('p', `${names.get(spiel.a) ?? 'Sieger der Vorrunde'} – ${names.get(spiel.b) ?? (spiel.status === 'freilos' ? 'Freilos' : 'Sieger der Vorrunde')}`, 'paarung'));
       if (spiel.status !== 'freilos') {
-        card.append(el('p', turnier.anzahlTische ? `Durchgang ${Math.floor(termin / turnier.anzahlTische) + 1} · Tisch ${termin % turnier.anzahlTische + 1}` : 'Tisch noch offen', 'muted'));
+        card.append(el('p', tischText(turnier, termin, anzahlSpiele), 'muted'));
         termin++;
       }
       if (['freilos', 'wartet'].includes(spiel.status)) {
