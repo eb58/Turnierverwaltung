@@ -36,6 +36,8 @@ Alle Turniere werden in `data/turniere.json` gespeichert. Die Datei wird automat
 npm.cmd test
 ```
 
+Die Testsuite enthält JavaScript-Unit-Tests für Tabelle und Fortschritt, PHP-Domänentests für Spielpläne, K.-o.-Fortschreibung und Satzwertung sowie API-Tests mit einer isolierten temporären Datendatei.
+
 ## Deployment
 
 ```powershell

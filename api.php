@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-const DATA_FILE = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'turniere.json';
+define('DATA_FILE', getenv('TURNIER_DATA_FILE') ?: __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'turniere.json');
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -216,6 +216,28 @@ function endErgebnis(mixed $a, mixed $b): void
     }
 }
 
+function turnierErgebnis(array $turnier, string $spielId, array $payload): array
+{
+    $gefunden = false;
+    foreach ($turnier['runden'] as $r => $runde) foreach ($runde as $s => $begegnung) {
+        if ($begegnung['id'] !== $spielId) continue;
+        if (in_array($begegnung['status'], ['wartet', 'freilos'], true)) throw new ApiError('Dieses Spiel kann noch nicht gespielt werden oder ist ein Freilos.');
+        if (array_key_exists('saetze', $payload)) {
+            if (!is_array($payload['saetze'])) throw new ApiError('Bitte Sätze eingeben.');
+            [$a, $b] = satzErgebnis($payload['saetze']);
+            $turnier['runden'][$r][$s]['saetze'] = $payload['saetze'];
+        } else {
+            $a = $payload['punkteA'] ?? null; $b = $payload['punkteB'] ?? null; endErgebnis($a, $b);
+            $turnier['runden'][$r][$s]['saetze'] = [];
+        }
+        $turnier['runden'][$r][$s]['punkteA'] = $a;
+        $turnier['runden'][$r][$s]['punkteB'] = $b;
+        $gefunden = true; break 2;
+    }
+    if (!$gefunden) throw new ApiError('Spiel nicht gefunden.', 404);
+    return berechnen($turnier);
+}
+
 function turnierIndex(array $turniere, int $id): int
 {
     foreach ($turniere as $index => $turnier) if (($turnier['id'] ?? null) === $id) return $index;
@@ -226,6 +248,8 @@ function pruefeVersion(array $turnier, array $payload): void
 {
     if (!is_int($payload['version'] ?? null) || $payload['version'] !== $turnier['version']) throw new ApiError('Das Turnier wurde inzwischen geändert. Bitte neu laden.', 409);
 }
+
+if (defined('TURNIER_API_NO_DISPATCH') && TURNIER_API_NO_DISPATCH) return;
 
 try {
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -318,24 +342,7 @@ try {
         $payload = body(); $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT); $spielId = $_GET['spiel'] ?? '';
         $result = withStore(function (array &$turniere) use ($payload, $id, $spielId): array {
             $index = turnierIndex($turniere, (int) $id); pruefeVersion($turniere[$index], $payload);
-            $gefunden = false;
-            foreach ($turniere[$index]['runden'] as $r => $runde) foreach ($runde as $s => $begegnung) {
-                if ($begegnung['id'] !== $spielId) continue;
-                if (in_array($begegnung['status'], ['wartet', 'freilos'], true)) throw new ApiError('Dieses Spiel kann noch nicht gespielt werden oder ist ein Freilos.');
-                if (array_key_exists('saetze', $payload)) {
-                    if (!is_array($payload['saetze'])) throw new ApiError('Bitte Sätze eingeben.');
-                    [$a, $b] = satzErgebnis($payload['saetze']);
-                    $turniere[$index]['runden'][$r][$s]['saetze'] = $payload['saetze'];
-                } else {
-                    $a = $payload['punkteA'] ?? null; $b = $payload['punkteB'] ?? null; endErgebnis($a, $b);
-                    $turniere[$index]['runden'][$r][$s]['saetze'] = [];
-                }
-                $turniere[$index]['runden'][$r][$s]['punkteA'] = $a;
-                $turniere[$index]['runden'][$r][$s]['punkteB'] = $b;
-                $gefunden = true; break 2;
-            }
-            if (!$gefunden) throw new ApiError('Spiel nicht gefunden.', 404);
-            $turniere[$index] = berechnen($turniere[$index]); $turniere[$index]['version']++;
+            $turniere[$index] = turnierErgebnis($turniere[$index], $spielId, $payload); $turniere[$index]['version']++;
             return ['turnier' => $turniere[$index]];
         }, true);
         respond($result);

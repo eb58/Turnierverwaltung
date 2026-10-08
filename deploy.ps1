@@ -9,7 +9,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $projectRoot = $PSScriptRoot
-$appFiles = @(".htaccess", "api.php", "app.js", "index.html", "reinickendorf-wappen.svg", "styles.css")
+$appFiles = @(".htaccess", "api.php", "app.js", "turnier-domain.js", "index.html", "reinickendorf-wappen.svg", "styles.css")
 $sshOpt = "-o UpdateHostKeys=no"
 $remoteApp = "${Webroot}/${AppPath}"
 $uploadFiles = $appFiles | ForEach-Object {

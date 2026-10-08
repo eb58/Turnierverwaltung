@@ -2,8 +2,12 @@
   "name": "turnierverwaltung",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "test": "node --check app.js && php -l api.php && php -l router.php"
+    "test": "npm run test:syntax && npm run test:unit && npm run test:php && npm run test:api",
+    "test:syntax": "node --check app.js && node --check turnier-domain.js && php -l api.php && php -l router.php",
+    "test:unit": "node --test tests/unit/*.test.js",
+    "test:php": "php tests/php/turnier-test.php",
+    "test:api": "node --test tests/api/*.test.js"
   }
 }
-
