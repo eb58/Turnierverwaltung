@@ -12,6 +12,8 @@ const paare = $('paare');
 const details = $('details');
 const auswahl = $('turnierAuswahl');
 const appDialog = $('appDialog');
+const paareDialog = $('paareDialog');
+let bearbeitetesTurnier;
 let dialogResolve;
 
 const dialogBeenden = wert => {
@@ -41,6 +43,43 @@ $('dialogForm').addEventListener('submit', event => {
   dialogBeenden(mitEingabe ? $('dialogEingabe').value.trim() : true);
 });
 appDialog.addEventListener('cancel', event => { event.preventDefault(); dialogBeenden(null); });
+
+const paareDialogOeffnen = turnier => {
+  bearbeitetesTurnier = turnier;
+  const container = $('paareBearbeiten'); container.replaceChildren();
+  for (const teilnehmer of turnier.teilnehmer) {
+    const feld = el('fieldset'); feld.dataset.id = teilnehmer.id;
+    feld.append(el('legend', `Paar ${teilnehmer.id}`));
+    teilnehmer.spieler.forEach((spieler, index) => {
+      const label = el('label'); label.append(el('span', `Spieler ${index + 1}`));
+      const input = el('input'); input.value = spieler.name; input.required = true; input.maxLength = 100;
+      label.append(input); feld.append(label);
+    });
+    container.append(feld);
+  }
+  paareDialog.showModal();
+  container.querySelector('input')?.focus();
+};
+
+$('paareAbbrechen').addEventListener('click', () => paareDialog.close());
+paareDialog.addEventListener('cancel', event => { event.preventDefault(); paareDialog.close(); });
+$('paareDialogForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const turnier = bearbeitetesTurnier;
+  if (!turnier) return;
+  const teilnehmer = [...$('paareBearbeiten').children].map(feld => ({
+    id: Number(feld.dataset.id),
+    spieler: [...feld.querySelectorAll('input')].map(input => ({ name: input.value.trim() })),
+  }));
+  setBusy(true); meldung('');
+  try {
+    const result = await request(`teilnehmer&turnier=${turnier.id}`, { method: 'PUT', body: JSON.stringify({ version: turnier.version, teilnehmer }) });
+    state.turniere = state.turniere.map(item => item.id === result.turnier.id ? result.turnier : item);
+    paareDialog.close(); bearbeitetesTurnier = null;
+    render(); meldung('Spielernamen gespeichert.', 'erfolg');
+  } catch (error) { meldung(error.message); }
+  finally { setBusy(false); }
+});
 
 let meldungsTimer;
 const meldung = (text, typ = 'fehler') => {
@@ -226,6 +265,8 @@ const renderDetails = () => {
   const fortschritt = turnierFortschritt(turnier);
   const kopf = el('div', undefined, 'turnier-kopf toolbar');
   const kopfAktionen = el('div', undefined, 'toolbar');
+  const spielerAendern = el('button', 'Spielernamen ändern', 'secondary'); spielerAendern.type = 'button';
+  spielerAendern.addEventListener('click', () => paareDialogOeffnen(turnier));
   const umbenennen = el('button', 'Umbenennen', 'secondary'); umbenennen.type = 'button';
   umbenennen.addEventListener('click', async () => {
     const titel = await dialogOeffnen({ titel: 'Turnier umbenennen', text: 'Gib einen neuen Namen für das Turnier ein.', eingabe: turnier.titel, bestaetigung: 'Speichern' });
@@ -251,7 +292,7 @@ const renderDetails = () => {
     } catch (error) { meldung(error.message); }
     finally { setBusy(false); }
   });
-  kopfAktionen.append(umbenennen, loeschen);
+  kopfAktionen.append(spielerAendern, umbenennen, loeschen);
   kopf.append(el('h2', turnier.titel), kopfAktionen);
   details.append(kopf, el('p', `${modusName(turnier.modus)} · ${turnier.teilnehmer.length} Doppelpaare · ${fortschritt.fertig} von ${fortschritt.gesamt} Spielen abgeschlossen`, 'muted'));
 

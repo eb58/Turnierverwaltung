@@ -42,6 +42,11 @@ dialog form { display: grid; gap: 1rem; padding: 1.25rem; }
 dialog h2, dialog p { margin-bottom: 0; }
 dialog label { display: grid; gap: .35rem; font-weight: 650; }
 .dialog-aktionen { display: flex; justify-content: flex-end; gap: .65rem; }
+.breiter-dialog { width: min(820px, calc(100% - 2rem)); max-height: calc(100% - 2rem); }
+.breiter-dialog form { max-height: calc(100vh - 2rem); overflow: auto; }
+.paare-bearbeiten { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: .8rem; }
+.paare-bearbeiten fieldset { padding: .8rem; border: 1px solid var(--border); border-radius: 10px; }
+.paare-bearbeiten label + label { margin-top: .55rem; }
 .turnier-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
 .turnier-form label { display: grid; gap: .35rem; font-weight: 650; }
 .wide { grid-column: 1 / -1; min-width: 0; }

@@ -271,6 +271,40 @@ try {
         }, true);
         respond($result);
     }
+    if ($method === 'PUT' && $action === 'teilnehmer') {
+        $payload = body(); $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT);
+        $result = withStore(function (array &$turniere) use ($payload, $id): array {
+            $index = turnierIndex($turniere, (int) $id); pruefeVersion($turniere[$index], $payload);
+            $eingaben = $payload['teilnehmer'] ?? null;
+            if (!is_array($eingaben) || count($eingaben) !== count($turniere[$index]['teilnehmer'])) {
+                throw new ApiError('Bitte für jedes Doppelpaar beide Spielernamen angeben.');
+            }
+            $nachId = [];
+            foreach ($eingaben as $eingabe) {
+                $paarId = $eingabe['id'] ?? null;
+                if (!is_int($paarId) || isset($nachId[$paarId])) throw new ApiError('Ungültiges Doppelpaar.');
+                $nachId[$paarId] = $eingabe;
+            }
+            $namen = [];
+            foreach ($turniere[$index]['teilnehmer'] as &$teilnehmer) {
+                $personen = $nachId[$teilnehmer['id']]['spieler'] ?? null;
+                if (!is_array($personen) || count($personen) !== 2) throw new ApiError('Jedes Doppel benötigt genau zwei Spieler.');
+                $spieler = [];
+                foreach (array_values($personen) as $person) {
+                    $name = text($person['name'] ?? null, 100, 'für jeden Spieler einen Namen');
+                    $key = function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
+                    if (isset($namen[$key])) throw new ApiError('Ein Spielername darf im Turnier nur einmal vorkommen.');
+                    $namen[$key] = true; $spieler[] = ['name' => $name];
+                }
+                $teilnehmer['spieler'] = $spieler;
+                $teilnehmer['name'] = $spieler[0]['name'] . ' / ' . $spieler[1]['name'];
+            }
+            unset($teilnehmer);
+            $turniere[$index]['version']++;
+            return ['turnier' => $turniere[$index]];
+        }, true);
+        respond($result);
+    }
     if ($method === 'PUT' && $action === 'tische') {
         $payload = body(); $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT);
         $result = withStore(function (array &$turniere) use ($payload, $id): array {
