@@ -314,15 +314,23 @@ const renderDetails = () => {
           }
         } else {
           for (const key of ['a', 'b']) {
-            const input = el('input'); input.type = 'number'; input.min = '0'; input.max = '3'; input.required = true; input.name = `punkte${key.toUpperCase()}`; input.value = spiel[`punkte${key.toUpperCase()}`] ?? '';
+            const input = el('input'); input.type = 'number'; input.min = '0'; input.max = '3'; input.name = `punkte${key.toUpperCase()}`; input.value = spiel[`punkte${key.toUpperCase()}`] ?? '';
             input.setAttribute('aria-label', `Spielergebnis ${names.get(spiel[key])}`); ergebnisForm.append(input);
           }
         }
         const save = el('button', 'Speichern', 'small'); save.type = 'submit'; ergebnisForm.append(save);
-        ergebnisForm.addEventListener('submit', event => {
+        ergebnisForm.addEventListener('submit', async event => {
           event.preventDefault();
           if (!state.satzweise) {
-            const a = Number(ergebnisForm.elements.punkteA.value), b = Number(ergebnisForm.elements.punkteB.value);
+            const wertA = ergebnisForm.elements.punkteA.value, wertB = ergebnisForm.elements.punkteB.value;
+            if (wertA === '' && wertB === '') {
+              if (spiel.status !== 'fertig') { meldung('Bitte ein Spielergebnis eingeben.'); return; }
+              if (!await dialogOeffnen({ titel: 'Ergebnis löschen?', text: 'Das gespeicherte Ergebnis wird entfernt.', bestaetigung: 'Ergebnis löschen', gefahr: true })) return;
+              void mutation(`ergebnis&turnier=${turnier.id}&spiel=${encodeURIComponent(spiel.id)}`, { version: turnier.version, saetze: [] }, 'Ergebnis gelöscht.');
+              return;
+            }
+            if (wertA === '' || wertB === '') { meldung('Bitte beide Ergebnisfelder ausfüllen.'); return; }
+            const a = Number(wertA), b = Number(wertB);
             if (!gueltigesErgebnis(a, b)) { meldung('Das Spielergebnis muss 3:0, 3:1, 3:2 oder umgekehrt lauten.'); return; }
             speichern(turnier, spiel, { punkteA: a, punkteB: b }); return;
           }
@@ -333,23 +341,17 @@ const renderDetails = () => {
             if (luecke || a === '' || b === '') { meldung('Bitte beide Satzpunkte ohne Lücken eingeben.'); return; }
             saetze.push({ a: Number(a), b: Number(b) });
           }
-          if (!saetze.length) { meldung('Bitte das Satzergebnis eingeben.'); return; }
+          if (!saetze.length) {
+            if (spiel.status !== 'fertig') { meldung('Bitte das Satzergebnis eingeben.'); return; }
+            if (!await dialogOeffnen({ titel: 'Ergebnis löschen?', text: 'Das gespeicherte Ergebnis wird entfernt.', bestaetigung: 'Ergebnis löschen', gefahr: true })) return;
+            void mutation(`ergebnis&turnier=${turnier.id}&spiel=${encodeURIComponent(spiel.id)}`, { version: turnier.version, saetze: [] }, 'Ergebnis gelöscht.');
+            return;
+          }
           speichern(turnier, spiel, { saetze });
         });
         let ergebnisInfo;
         if (spiel.status === 'fertig') {
           ergebnisInfo = el('p', `Sätze ${spiel.punkteA}:${spiel.punkteB} · Sieger: ${names.get(spiel.sieger)}`, 'erfolg ergebnis-info');
-          const reset = el('button', 'Ergebnis löschen', 'secondary small'); reset.type = 'button';
-          reset.addEventListener('click', async () => {
-            if (!await dialogOeffnen({
-              titel: 'Ergebnis löschen?',
-              text: 'Das gespeicherte Ergebnis wird entfernt und kann anschließend neu eingegeben werden.',
-              bestaetigung: 'Ergebnis löschen',
-              gefahr: true,
-            })) return;
-            void mutation(`ergebnis&turnier=${turnier.id}&spiel=${encodeURIComponent(spiel.id)}`, { version: turnier.version, saetze: [] }, 'Ergebnis gelöscht.');
-          });
-          ergebnisForm.append(reset);
         }
         card.append(ergebnisForm);
         if (ergebnisInfo) card.append(ergebnisInfo);
