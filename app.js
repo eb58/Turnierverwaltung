@@ -356,13 +356,20 @@ form.addEventListener('submit', async event => {
   await turnierAnlegen({ titel: form.elements.titel.value.trim(), modus: form.elements.modus.value, teilnehmer });
 });
 
-$('testturnierAnlegen').addEventListener('click', () => {
-  const namen = [
-    ['Anna', 'Ben'], ['Clara', 'David'], ['Eva', 'Felix'], ['Greta', 'Hannes'],
-    ['Ida', 'Jonas'], ['Klara', 'Lukas'], ['Mara', 'Noah'], ['Olivia', 'Paul'],
-  ];
-  const teilnehmer = namen.map(spieler => ({ spieler: spieler.map(name => ({ name })) }));
-  void turnierAnlegen({ titel: 'Testturnier', modus: 'jeder-gegen-jeden', teilnehmer });
+$('fantasiePaar').addEventListener('click', () => {
+  const vornamen = ['Alva', 'Borin', 'Cira', 'Darian', 'Elva', 'Falk', 'Gilda', 'Hanno', 'Ilva', 'Jorin', 'Kora', 'Lian', 'Mira', 'Nero', 'Orla', 'Piran'];
+  const nachnamen = ['Falkenwind', 'Sternenflug', 'Mondtal', 'Silberblatt', 'Drachenfels', 'Wolkenlauf', 'Feuerhain', 'Nebelbach'];
+  const verwendet = new Set([...paare.querySelectorAll('input')].map(input => input.value.trim().toLocaleLowerCase('de')).filter(Boolean));
+  let ziel = [...paare.children].find(paar => [...paar.querySelectorAll('input')].every(input => !input.value.trim()));
+  if (!ziel && paare.children.length < 32) { addPaar(); ziel = paare.lastElementChild; }
+  if (!ziel) { meldung('Alle 32 Doppelpaare sind bereits belegt.'); return; }
+  const kandidaten = Array.from({ length: vornamen.length * nachnamen.length }, (_, index) =>
+    `${vornamen[index % vornamen.length]} ${nachnamen[Math.floor(index / vornamen.length)]}`);
+  const freieNamen = kandidaten.filter(name => !verwendet.has(name.toLocaleLowerCase('de'))).slice(0, 2);
+  if (freieNamen.length < 2) { meldung('Es sind keine weiteren Fantasienamen verfügbar.'); return; }
+  [...ziel.querySelectorAll('input')].forEach((input, index) => { input.value = freieNamen[index]; });
+  ziel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  meldung('Fantasiepaar eingefügt.', 'erfolg');
 });
 
 $('paarHinzufuegen').addEventListener('click', addPaar);
