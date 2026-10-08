@@ -11,6 +11,36 @@ const form = $('turnierForm');
 const paare = $('paare');
 const details = $('details');
 const auswahl = $('turnierAuswahl');
+const appDialog = $('appDialog');
+let dialogResolve;
+
+const dialogBeenden = wert => {
+  appDialog.close();
+  const resolve = dialogResolve; dialogResolve = null;
+  resolve?.(wert);
+};
+
+const dialogOeffnen = ({ titel, text, eingabe = null, bestaetigung = 'Bestätigen', gefahr = false }) => new Promise(resolve => {
+  dialogResolve = resolve;
+  $('dialogTitel').textContent = titel;
+  $('dialogText').textContent = text;
+  $('dialogEingabeWrap').hidden = eingabe === null;
+  $('dialogEingabe').required = eingabe !== null;
+  $('dialogEingabe').value = eingabe ?? '';
+  $('dialogBestaetigen').textContent = bestaetigung;
+  $('dialogBestaetigen').className = gefahr ? 'danger' : '';
+  appDialog.showModal();
+  if (eingabe !== null) { $('dialogEingabe').focus(); $('dialogEingabe').select(); }
+  else $('dialogBestaetigen').focus();
+});
+
+$('dialogAbbrechen').addEventListener('click', () => dialogBeenden(null));
+$('dialogForm').addEventListener('submit', event => {
+  event.preventDefault();
+  const mitEingabe = !$('dialogEingabeWrap').hidden;
+  dialogBeenden(mitEingabe ? $('dialogEingabe').value.trim() : true);
+});
+appDialog.addEventListener('cancel', event => { event.preventDefault(); dialogBeenden(null); });
 
 let meldungsTimer;
 const meldung = (text, typ = 'fehler') => {
@@ -127,9 +157,13 @@ const mutation = async (action, body, erfolgstext = 'Ergebnis gespeichert.') => 
   finally { setBusy(false); }
 };
 
-const speichern = (turnier, spiel, body) => {
+const speichern = async (turnier, spiel, body) => {
   if (turnier.modus === 'ko' && spiel.status === 'fertig'
-    && !window.confirm('Ergebnis ändern? Bei geändertem Sieger werden betroffene Folgespiele zurückgesetzt.')) return;
+    && !await dialogOeffnen({
+      titel: 'Ergebnis ändern?',
+      text: 'Bei einem geänderten Sieger werden betroffene Folgespiele zurückgesetzt.',
+      bestaetigung: 'Ergebnis ändern',
+    })) return;
   void mutation(`ergebnis&turnier=${turnier.id}&spiel=${encodeURIComponent(spiel.id)}`, { version: turnier.version, ...body });
 };
 
@@ -185,16 +219,20 @@ const renderDetails = () => {
   const kopf = el('div', undefined, 'turnier-kopf toolbar');
   const kopfAktionen = el('div', undefined, 'toolbar');
   const umbenennen = el('button', 'Umbenennen', 'secondary'); umbenennen.type = 'button';
-  umbenennen.addEventListener('click', () => {
-    const titel = window.prompt('Neuer Turniername:', turnier.titel);
-    if (titel === null || titel.trim() === turnier.titel) return;
-    if (!titel.trim()) { meldung('Bitte einen Turniernamen eingeben.'); return; }
-    void mutation(`umbenennen&turnier=${turnier.id}`, { version: turnier.version, titel: titel.trim() }, 'Turnier umbenannt.');
+  umbenennen.addEventListener('click', async () => {
+    const titel = await dialogOeffnen({ titel: 'Turnier umbenennen', text: 'Gib einen neuen Namen für das Turnier ein.', eingabe: turnier.titel, bestaetigung: 'Speichern' });
+    if (titel === null || titel === turnier.titel) return;
+    void mutation(`umbenennen&turnier=${turnier.id}`, { version: turnier.version, titel }, 'Turnier umbenannt.');
   });
   const istTestturnier = turnier.titel.trim().toLocaleLowerCase('de') === 'testturnier';
   const loeschen = el('button', istTestturnier ? 'Testturnier löschen' : 'Turnier löschen', 'danger'); loeschen.type = 'button';
   loeschen.addEventListener('click', async () => {
-    if (!window.confirm(`Turnier „${turnier.titel}“ mit allen Ergebnissen endgültig löschen?`)) return;
+    if (!await dialogOeffnen({
+      titel: 'Turnier löschen?',
+      text: `„${turnier.titel}“ und alle zugehörigen Ergebnisse werden endgültig gelöscht.`,
+      bestaetigung: 'Endgültig löschen',
+      gefahr: true,
+    })) return;
     setBusy(true); meldung('');
     try {
       await request(`loeschen&turnier=${turnier.id}`, { method: 'DELETE', body: JSON.stringify({ version: turnier.version }) });

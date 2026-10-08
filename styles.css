@@ -36,6 +36,12 @@ h1 { margin-bottom: .15rem; color: var(--accent-dark); font-size: clamp(1.5rem, 
 .panel summary { color: var(--accent-dark); cursor: pointer; font-weight: 750; }
 .meldung { position: fixed; z-index: 10; top: 1rem; right: 1rem; max-width: min(420px, calc(100% - 2rem)); padding: .8rem 1rem; color: #991b1b; background: #fee2e2; border: 1px solid #fecaca; border-radius: 10px; box-shadow: 0 8px 24px rgba(15, 23, 42, .18); }
 .meldung.erfolg { color: #065f46; background: #d1fae5; border-color: #6ee7b7; }
+dialog { width: min(480px, calc(100% - 2rem)); padding: 0; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 24px 60px rgba(15, 23, 42, .3); }
+dialog::backdrop { background: rgba(15, 23, 42, .55); backdrop-filter: blur(2px); }
+dialog form { display: grid; gap: 1rem; padding: 1.25rem; }
+dialog h2, dialog p { margin-bottom: 0; }
+dialog label { display: grid; gap: .35rem; font-weight: 650; }
+.dialog-aktionen { display: flex; justify-content: flex-end; gap: .65rem; }
 .turnier-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
 .turnier-form label { display: grid; gap: .35rem; font-weight: 650; }
 .wide { grid-column: 1 / -1; min-width: 0; }
