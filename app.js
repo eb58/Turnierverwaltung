@@ -24,10 +24,11 @@ const dialogBeenden = wert => {
   resolve?.(wert);
 };
 
-const dialogOeffnen = ({ titel, text, eingabe = null, bestaetigung = 'Bestätigen', gefahr = false }) => new Promise(resolve => {
+const dialogOeffnen = ({ titel, text, hervorhebung = null, eingabe = null, bestaetigung = 'Bestätigen', gefahr = false }) => new Promise(resolve => {
   dialogResolve = resolve;
   $('dialogTitel').textContent = titel;
-  $('dialogText').textContent = text;
+  if (hervorhebung === null) $('dialogText').textContent = text;
+  else $('dialogText').replaceChildren(document.createTextNode(text), el('strong', hervorhebung));
   $('dialogEingabeWrap').hidden = eingabe === null;
   $('dialogEingabe').required = eingabe !== null;
   $('dialogEingabe').value = eingabe ?? '';
@@ -240,7 +241,8 @@ const renderDetails = () => {
   loeschen.addEventListener('click', async () => {
     if (!await dialogOeffnen({
       titel: 'Turnier löschen?',
-      text: `„${turnier.titel}“ und alle zugehörigen Ergebnisse werden endgültig gelöscht.`,
+      text: 'Turnier und alle Ergebnisse endgültig löschen: ',
+      hervorhebung: `„${turnier.titel}“`,
       bestaetigung: 'Endgültig löschen',
       gefahr: true,
     })) return;
