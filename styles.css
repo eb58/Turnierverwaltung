@@ -71,6 +71,7 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
 .paarung { margin-bottom: .45rem; font-weight: 750; overflow-wrap: anywhere; }
 .ergebnis { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
 .ergebnis > input { width: 74px; }
+.ergebnis-info { margin: .65rem 0 0; }
 .satz { display: flex; align-items: center; gap: .4rem; width: 100%; }
 .satz span { min-width: 54px; }
 .satz input { width: 74px; }

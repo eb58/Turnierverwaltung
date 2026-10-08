@@ -336,11 +336,23 @@ const renderDetails = () => {
           if (!saetze.length) { meldung('Bitte das Satzergebnis eingeben.'); return; }
           speichern(turnier, spiel, { saetze });
         });
+        let ergebnisInfo;
         if (spiel.status === 'fertig') {
-          card.append(el('p', `Sätze ${spiel.punkteA}:${spiel.punkteB} · Sieger: ${names.get(spiel.sieger)}`, 'erfolg'));
-          const reset = el('button', 'Zurücksetzen', 'secondary small'); reset.type = 'button'; reset.addEventListener('click', () => speichern(turnier, spiel, { saetze: [] })); ergebnisForm.append(reset);
+          ergebnisInfo = el('p', `Sätze ${spiel.punkteA}:${spiel.punkteB} · Sieger: ${names.get(spiel.sieger)}`, 'erfolg ergebnis-info');
+          const reset = el('button', 'Ergebnis löschen', 'secondary small'); reset.type = 'button';
+          reset.addEventListener('click', async () => {
+            if (!await dialogOeffnen({
+              titel: 'Ergebnis löschen?',
+              text: 'Das gespeicherte Ergebnis wird entfernt und kann anschließend neu eingegeben werden.',
+              bestaetigung: 'Ergebnis löschen',
+              gefahr: true,
+            })) return;
+            void mutation(`ergebnis&turnier=${turnier.id}&spiel=${encodeURIComponent(spiel.id)}`, { version: turnier.version, saetze: [] }, 'Ergebnis gelöscht.');
+          });
+          ergebnisForm.append(reset);
         }
         card.append(ergebnisForm);
+        if (ergebnisInfo) card.append(ergebnisInfo);
       }
       spiele.append(card);
     }
