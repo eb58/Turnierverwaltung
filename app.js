@@ -109,8 +109,10 @@ const request = async (action = '', options = {}) => {
 };
 
 const modusName = modus => modus === 'ko' ? 'K.-o.-System' : 'Jeder gegen jeden';
-const gueltigesErgebnis = (a, b) => Number.isInteger(a) && Number.isInteger(b)
-  && ((a === 3 && b >= 0 && b <= 2) || (b === 3 && a >= 0 && a <= 2));
+const gewinnsaetze = turnier => turnier.gewinnsaetze ?? 3;
+const wertungsName = turnier => `${gewinnsaetze(turnier)} Gewinnsätze (Best of ${gewinnsaetze(turnier) * 2 - 1})`;
+const gueltigesErgebnis = (a, b, ziel) => Number.isInteger(a) && Number.isInteger(b)
+  && ((a === ziel && b >= 0 && b < ziel) || (b === ziel && a >= 0 && a < ziel));
 
 const aktualisiereAnzahl = () => { $('anzahl').textContent = `${paare.children.length} Doppelpaare · erlaubt: 5 bis 32`; };
 const addPaar = () => {
@@ -193,7 +195,7 @@ const renderBeamer = turnier => {
   const fortschritt = turnierFortschritt(turnier);
   const aktuell = aktuelleRundeIndex(turnier);
   details.className = 'panel beamer-panel';
-  details.append(el('h2', turnier.titel), el('p', `${modusName(turnier.modus)} · ${fortschritt.fertig} von ${fortschritt.gesamt} Spielen abgeschlossen`, 'muted'));
+  details.append(el('h2', turnier.titel), el('p', `${modusName(turnier.modus)} · ${wertungsName(turnier)} · ${fortschritt.fertig} von ${fortschritt.gesamt} Spielen abgeschlossen`, 'muted'));
   if (turnier.modus === 'jeder-gegen-jeden') details.append(el('h3', 'Tabelle'), renderTabelle(turnier));
   for (const index of [aktuell, aktuell + 1]) {
     const runde = turnier.runden[index];
@@ -258,7 +260,7 @@ const renderDetails = () => {
   });
   kopfAktionen.append(spielerAendern, umbenennen, loeschen);
   kopf.append(el('h2', turnier.titel), kopfAktionen);
-  details.append(kopf, el('p', `${modusName(turnier.modus)} · ${turnier.teilnehmer.length} Doppelpaare · ${fortschritt.fertig} von ${fortschritt.gesamt} Spielen abgeschlossen`, 'muted'));
+  details.append(kopf, el('p', `${modusName(turnier.modus)} · ${wertungsName(turnier)} · ${turnier.teilnehmer.length} Doppelpaare · ${fortschritt.fertig} von ${fortschritt.gesamt} Spielen abgeschlossen`, 'muted'));
 
   const erfassung = el('label', undefined, 'erfassungsart');
   const schalter = el('input'); schalter.type = 'checkbox'; schalter.role = 'switch'; schalter.checked = state.satzweise;
@@ -309,7 +311,7 @@ const renderDetails = () => {
       } else {
         const ergebnisForm = el('form', undefined, 'ergebnis');
         if (state.satzweise) {
-          for (let index = 0; index < 5; index++) {
+          for (let index = 0; index < gewinnsaetze(turnier) * 2 - 1; index++) {
             const row = el('div', undefined, 'satz'); row.append(el('span', `Satz ${index + 1}`));
             for (const key of ['a', 'b']) {
               const input = el('input'); input.type = 'number'; input.min = '0'; input.max = '999'; input.name = `satz${index}${key}`; input.value = spiel.saetze?.[index]?.[key] ?? '';
@@ -319,7 +321,7 @@ const renderDetails = () => {
           }
         } else {
           for (const key of ['a', 'b']) {
-            const input = el('input'); input.type = 'number'; input.min = '0'; input.max = '3'; input.name = `punkte${key.toUpperCase()}`; input.value = spiel[`punkte${key.toUpperCase()}`] ?? '';
+            const input = el('input'); input.type = 'number'; input.min = '0'; input.max = String(gewinnsaetze(turnier)); input.name = `punkte${key.toUpperCase()}`; input.value = spiel[`punkte${key.toUpperCase()}`] ?? '';
             input.setAttribute('aria-label', `Spielergebnis ${names.get(spiel[key])}`); ergebnisForm.append(input);
           }
         }
@@ -336,11 +338,11 @@ const renderDetails = () => {
             }
             if (wertA === '' || wertB === '') { meldung('Bitte beide Ergebnisfelder ausfüllen.'); return; }
             const a = Number(wertA), b = Number(wertB);
-            if (!gueltigesErgebnis(a, b)) { meldung('Das Spielergebnis muss 3:0, 3:1, 3:2 oder umgekehrt lauten.'); return; }
+            if (!gueltigesErgebnis(a, b, gewinnsaetze(turnier))) { meldung(`Ein Spielergebnis endet bei ${gewinnsaetze(turnier)} Gewinnsätzen.`); return; }
             speichern(turnier, spiel, { punkteA: a, punkteB: b }); return;
           }
           const saetze = []; let luecke = false;
-          for (let index = 0; index < 5; index++) {
+          for (let index = 0; index < gewinnsaetze(turnier) * 2 - 1; index++) {
             const a = ergebnisForm.elements[`satz${index}a`].value, b = ergebnisForm.elements[`satz${index}b`].value;
             if (a === '' && b === '') { luecke = true; continue; }
             if (luecke || a === '' || b === '') { meldung('Bitte beide Satzpunkte ohne Lücken eingeben.'); return; }
@@ -387,12 +389,12 @@ const load = async () => {
   finally { setBusy(false); }
 };
 
-const turnierAnlegen = async ({ titel, modus, teilnehmer }) => {
+const turnierAnlegen = async ({ titel, modus, gewinnsaetze: ziel, teilnehmer }) => {
   setBusy(true); meldung('');
   try {
     const result = await request('anlegen', {
       method: 'POST',
-      body: JSON.stringify({ titel, modus, teilnehmer, anzahlTische: null }),
+      body: JSON.stringify({ titel, modus, gewinnsaetze: ziel, teilnehmer, anzahlTische: null }),
     });
     state.turniere.unshift(result.turnier);
     state.ausgewaehlt = result.turnier.id;
@@ -419,7 +421,7 @@ form.addEventListener('submit', async event => {
     }
     teilnehmer.push({ spieler });
   }
-  await turnierAnlegen({ titel: form.elements.titel.value.trim(), modus: form.elements.modus.value, teilnehmer });
+  await turnierAnlegen({ titel: form.elements.titel.value.trim(), modus: form.elements.modus.value, gewinnsaetze: Number(form.elements.gewinnsaetze.value), teilnehmer });
 });
 
 $('fantasiePaar').addEventListener('click', () => {

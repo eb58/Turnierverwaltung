@@ -7,7 +7,8 @@ Eigenständige Verwaltung von Tischtennis-Doppelturnieren – ohne Anmeldung und
 - 5 bis 32 feste Doppelpaare mit frei eingegebenen Namen
 - Jeder gegen jeden oder K.-o.-System
 - aktuelle Runde hervorgehoben, weitere Runden einklappbar
-- einfache Ergebniserfassung (`3:0` bis `3:2`) oder optionale Erfassung jedes Satzes
+- wahlweise zwei Gewinnsätze (Best of 3) oder drei Gewinnsätze (Best of 5)
+- einfache Ergebniserfassung oder optionale Erfassung jedes Satzes
 - automatische Tabelle mit Siegen, Satzdifferenz und direktem Vergleich
 - K.-o.-Freilose und automatische Fortschreibung der Sieger
 - optionale Tischanzahl mit Anzeige von Durchgang und Tisch

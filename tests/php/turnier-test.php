@@ -45,7 +45,7 @@ test('K.-o. ermittelt für 5 bis 32 Paare mit n-1 Spielen einen Sieger', functio
             $spiel = $turnier['runden'][$r][$s];
             if ($spiel['status'] === 'freilos') continue;
             gleich('offen', $spiel['status']);
-            $turnier = turnierErgebnis($turnier, $spiel['id'], ['punkteA' => 3, 'punkteB' => 0]); $gespielt++;
+            $turnier = turnierErgebnis($turnier, $spiel['id'], ['punkteA' => 2, 'punkteB' => 0]); $gespielt++;
         }
         gleich($n - 1, $gespielt, "Spielzahl bei $n Teilnehmern");
         wahr($turnier['runden'][count($turnier['runden']) - 1][0]['sieger'] !== null, "Sieger fehlt bei $n Teilnehmern");
@@ -55,9 +55,9 @@ test('K.-o. ermittelt für 5 bis 32 Paare mit n-1 Spielen einen Sieger', functio
 test('Korrektur eines K.-o.-Siegers setzt nur betroffene Folgespiele zurück', function (): void {
     $turnier = neuesTurnier(payload(8, 'ko'), 1);
     foreach (array_keys($turnier['runden']) as $r) foreach (array_keys($turnier['runden'][$r]) as $s) {
-        $turnier = turnierErgebnis($turnier, $turnier['runden'][$r][$s]['id'], ['punkteA' => 3, 'punkteB' => 0]);
+        $turnier = turnierErgebnis($turnier, $turnier['runden'][$r][$s]['id'], ['punkteA' => 2, 'punkteB' => 0]);
     }
-    $turnier = turnierErgebnis($turnier, 'r1-s1', ['punkteA' => 0, 'punkteB' => 3]);
+    $turnier = turnierErgebnis($turnier, 'r1-s1', ['punkteA' => 0, 'punkteB' => 2]);
     gleich('offen', $turnier['runden'][1][0]['status']);
     gleich(null, $turnier['runden'][1][0]['punkteA']);
     gleich('fertig', $turnier['runden'][1][1]['status']);
@@ -66,23 +66,34 @@ test('Korrektur eines K.-o.-Siegers setzt nur betroffene Folgespiele zurück', f
 
 test('Leeres Satzergebnis öffnet ein gespeichertes Spiel wieder', function (): void {
     $turnier = neuesTurnier(payload(5), 1); $id = $turnier['runden'][0][0]['id'];
-    $turnier = turnierErgebnis($turnier, $id, ['punkteA' => 3, 'punkteB' => 1]);
+    $turnier = turnierErgebnis($turnier, $id, ['punkteA' => 2, 'punkteB' => 1]);
     $turnier = turnierErgebnis($turnier, $id, ['saetze' => []]);
     gleich('offen', $turnier['runden'][0][0]['status']); gleich(null, $turnier['runden'][0][0]['punkteA']);
 });
 
 test('Satzwertung akzeptiert reguläre Ergebnisse und lehnt ungültige ab', function (): void {
-    gleich([3, 2], satzErgebnis([['a' => 0, 'b' => 11], ['a' => 11, 'b' => 0], ['a' => 14, 'b' => 12], ['a' => 12, 'b' => 14], ['a' => 11, 'b' => 1]]));
-    apiFehler(fn() => satzErgebnis([['a' => 11, 'b' => 10], ['a' => 11, 'b' => 0], ['a' => 11, 'b' => 0]]));
-    apiFehler(fn() => satzErgebnis([['a' => 11, 'b' => 0], ['a' => 11, 'b' => 0], ['a' => 11, 'b' => 0], ['a' => 11, 'b' => 0]]));
+    gleich([2, 0], satzErgebnis([['a' => 11, 'b' => 0], ['a' => 14, 'b' => 12]], 2));
+    gleich([2, 1], satzErgebnis([['a' => 0, 'b' => 11], ['a' => 11, 'b' => 0], ['a' => 11, 'b' => 1]], 2));
+    gleich([3, 1], satzErgebnis([['a' => 11, 'b' => 0], ['a' => 0, 'b' => 11], ['a' => 11, 'b' => 5], ['a' => 11, 'b' => 8]], 3));
+    apiFehler(fn() => satzErgebnis([['a' => 11, 'b' => 10], ['a' => 11, 'b' => 0]], 2));
+    apiFehler(fn() => satzErgebnis([['a' => 11, 'b' => 0], ['a' => 11, 'b' => 0], ['a' => 11, 'b' => 0]], 2));
+});
+
+test('Best of 3 ist Standard und Best of 5 kann gewählt werden', function (): void {
+    gleich(2, neuesTurnier(payload(5), 1)['gewinnsaetze']);
+    $bestOfFive = payload(5); $bestOfFive['gewinnsaetze'] = 3;
+    $turnier = neuesTurnier($bestOfFive, 1);
+    gleich(3, $turnier['gewinnsaetze']);
+    $spielId = $turnier['runden'][0][0]['id'];
+    gleich('fertig', turnierErgebnis($turnier, $spielId, ['punkteA' => 3, 'punkteB' => 2])['runden'][0][0]['status']);
 });
 
 test('Wartende Spiele und Freilose können nicht gespielt werden', function (): void {
     $turnier = neuesTurnier(payload(5, 'ko'), 1);
     $freilos = array_values(array_filter($turnier['runden'][0], fn(array $spiel): bool => $spiel['status'] === 'freilos'))[0];
     $wartend = array_values(array_filter(array_merge(...$turnier['runden']), fn(array $spiel): bool => $spiel['status'] === 'wartet'))[0];
-    apiFehler(fn() => turnierErgebnis($turnier, $freilos['id'], ['punkteA' => 3, 'punkteB' => 0]));
-    apiFehler(fn() => turnierErgebnis($turnier, $wartend['id'], ['punkteA' => 3, 'punkteB' => 0]));
+    apiFehler(fn() => turnierErgebnis($turnier, $freilos['id'], ['punkteA' => 2, 'punkteB' => 0]));
+    apiFehler(fn() => turnierErgebnis($turnier, $wartend['id'], ['punkteA' => 2, 'punkteB' => 0]));
 });
 
 test('Teilnehmergrenzen, doppelte Namen und Tischanzahl werden validiert', function (): void {

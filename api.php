@@ -100,6 +100,8 @@ function neuesTurnier(array $payload, int $id): array
     $titel = text($payload['titel'] ?? null, 100, 'einen Turniernamen');
     $modus = $payload['modus'] ?? '';
     if (!in_array($modus, ['jeder-gegen-jeden', 'ko'], true)) throw new ApiError('Unbekannter Turniermodus.');
+    $gewinnsaetze = $payload['gewinnsaetze'] ?? 2;
+    if (!is_int($gewinnsaetze) || !in_array($gewinnsaetze, [2, 3], true)) throw new ApiError('Bitte 2 oder 3 Gewinnsätze auswählen.');
     $eingaben = $payload['teilnehmer'] ?? null;
     if (!is_array($eingaben) || count($eingaben) < 5 || count($eingaben) > 32) throw new ApiError('Ein Turnier benötigt 5 bis 32 Doppelpaare.');
     $teilnehmer = []; $namen = [];
@@ -115,7 +117,7 @@ function neuesTurnier(array $payload, int $id): array
         }
         $teilnehmer[] = ['id' => $index + 1, 'name' => $spieler[0]['name'] . ' / ' . $spieler[1]['name'], 'spieler' => $spieler];
     }
-    $turnier = ['id' => $id, 'version' => 1, 'titel' => $titel, 'modus' => $modus, 'teilnehmer' => $teilnehmer, 'runden' => [], 'anzahlTische' => tischanzahl($payload['anzahlTische'] ?? null)];
+    $turnier = ['id' => $id, 'version' => 1, 'titel' => $titel, 'modus' => $modus, 'gewinnsaetze' => $gewinnsaetze, 'teilnehmer' => $teilnehmer, 'runden' => [], 'anzahlTische' => tischanzahl($payload['anzahlTische'] ?? null)];
     $ids = array_column($teilnehmer, 'id');
     if ($modus === 'jeder-gegen-jeden') {
         if (count($ids) % 2) $ids[] = null;
@@ -154,6 +156,7 @@ function importiertesTurnier(array $payload, int $id): array
     $basis = neuesTurnier([
         'titel' => $quelle['titel'] ?? null,
         'modus' => $quelle['modus'] ?? null,
+        'gewinnsaetze' => $quelle['gewinnsaetze'] ?? 3,
         'teilnehmer' => $quelle['teilnehmer'] ?? null,
         'anzahlTische' => $quelle['anzahlTische'] ?? null,
     ], $id);
@@ -170,13 +173,13 @@ function importiertesTurnier(array $payload, int $id): array
             }
             $saetze = $gesichert['saetze'] ?? [];
             if (is_array($saetze) && $saetze) {
-                [$a, $b] = satzErgebnis($saetze);
+                [$a, $b] = satzErgebnis($saetze, $basis['gewinnsaetze']);
                 $basis['runden'][$r][$s]['saetze'] = $saetze;
                 $basis['runden'][$r][$s]['punkteA'] = $a;
                 $basis['runden'][$r][$s]['punkteB'] = $b;
             } elseif (($gesichert['punkteA'] ?? null) !== null || ($gesichert['punkteB'] ?? null) !== null) {
                 $a = $gesichert['punkteA'] ?? null; $b = $gesichert['punkteB'] ?? null;
-                endErgebnis($a, $b);
+                endErgebnis($a, $b, $basis['gewinnsaetze']);
                 $basis['runden'][$r][$s]['punkteA'] = $a;
                 $basis['runden'][$r][$s]['punkteB'] = $b;
             }
@@ -192,42 +195,44 @@ function tischanzahl(mixed $value): ?int
     return $value;
 }
 
-function satzErgebnis(array $saetze): array
+function satzErgebnis(array $saetze, int $gewinnsaetze): array
 {
     if (!$saetze) return [null, null];
-    if (count($saetze) < 3 || count($saetze) > 5) throw new ApiError('Eine Begegnung benötigt 3 bis 5 Sätze.');
+    $maximaleSaetze = $gewinnsaetze * 2 - 1;
+    if (count($saetze) < $gewinnsaetze || count($saetze) > $maximaleSaetze) throw new ApiError("Eine Begegnung benötigt $gewinnsaetze bis $maximaleSaetze Sätze.");
     $a = $b = 0;
     foreach ($saetze as $satz) {
-        if ($a === 3 || $b === 3) throw new ApiError('Nach dem dritten Gewinnsatz darf kein weiterer Satz folgen.');
+        if ($a === $gewinnsaetze || $b === $gewinnsaetze) throw new ApiError("Nach dem $gewinnsaetze. Gewinnsatz darf kein weiterer Satz folgen.");
         $x = $satz['a'] ?? null; $y = $satz['b'] ?? null;
         if (!is_int($x) || !is_int($y) || $x < 0 || $y < 0 || $x > 999 || $y > 999) throw new ApiError('Satzpunkte müssen ganze Zahlen sein.');
         $max = max($x, $y); $min = min($x, $y);
         if ($max < 11 || ($max === 11 ? $min > 9 : $max - $min !== 2)) throw new ApiError('Ein Satz endet bei 11 Punkten, danach mit genau 2 Punkten Vorsprung.');
         if ($x > $y) $a++; else $b++;
     }
-    if ($a !== 3 && $b !== 3) throw new ApiError('Die Begegnung endet erst bei 3 Gewinnsätzen.');
+    if ($a !== $gewinnsaetze && $b !== $gewinnsaetze) throw new ApiError("Die Begegnung endet erst bei $gewinnsaetze Gewinnsätzen.");
     return [$a, $b];
 }
 
-function endErgebnis(mixed $a, mixed $b): void
+function endErgebnis(mixed $a, mixed $b, int $gewinnsaetze): void
 {
-    if (!is_int($a) || !is_int($b) || !(($a === 3 && $b >= 0 && $b <= 2) || ($b === 3 && $a >= 0 && $a <= 2))) {
-        throw new ApiError('Das Spielergebnis muss 3:0, 3:1, 3:2 oder umgekehrt lauten.');
+    if (!is_int($a) || !is_int($b) || !(($a === $gewinnsaetze && $b >= 0 && $b < $gewinnsaetze) || ($b === $gewinnsaetze && $a >= 0 && $a < $gewinnsaetze))) {
+        throw new ApiError("Ein Spielergebnis endet bei $gewinnsaetze Gewinnsätzen.");
     }
 }
 
 function turnierErgebnis(array $turnier, string $spielId, array $payload): array
 {
+    $gewinnsaetze = $turnier['gewinnsaetze'] ?? 3;
     $gefunden = false;
     foreach ($turnier['runden'] as $r => $runde) foreach ($runde as $s => $begegnung) {
         if ($begegnung['id'] !== $spielId) continue;
         if (in_array($begegnung['status'], ['wartet', 'freilos'], true)) throw new ApiError('Dieses Spiel kann noch nicht gespielt werden oder ist ein Freilos.');
         if (array_key_exists('saetze', $payload)) {
             if (!is_array($payload['saetze'])) throw new ApiError('Bitte Sätze eingeben.');
-            [$a, $b] = satzErgebnis($payload['saetze']);
+            [$a, $b] = satzErgebnis($payload['saetze'], $gewinnsaetze);
             $turnier['runden'][$r][$s]['saetze'] = $payload['saetze'];
         } else {
-            $a = $payload['punkteA'] ?? null; $b = $payload['punkteB'] ?? null; endErgebnis($a, $b);
+            $a = $payload['punkteA'] ?? null; $b = $payload['punkteB'] ?? null; endErgebnis($a, $b, $gewinnsaetze);
             $turnier['runden'][$r][$s]['saetze'] = [];
         }
         $turnier['runden'][$r][$s]['punkteA'] = $a;
