@@ -59,9 +59,11 @@ dialog strong { color: var(--accent-dark); }
 .actions { margin-top: .8rem; }
 .erfassungsart { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; }
 .erfassungsart input { width: 20px; min-height: 20px; accent-color: var(--accent); }
-.tisch-form { margin-bottom: 1rem; }
+.tisch-form, .einstellungs-form { margin-bottom: 1rem; }
 .tisch-form label { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; }
 .tisch-form input { width: 110px; }
+.einstellungs-form label { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; }
+.einstellungs-form select { width: auto; min-width: 230px; }
 .table-wrap { overflow-x: auto; margin-bottom: 1rem; }
 table { width: 100%; border-collapse: collapse; }
 caption { padding: .4rem 0; color: var(--muted); text-align: left; }
@@ -83,7 +85,7 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
 .satz span { min-width: 54px; }
 .satz input { width: 74px; }
 .erfolg { color: #047857; font-weight: 650; }
-.beamer .management-only, .beamer .turnier-kopf button, .beamer .erfassungsart, .beamer .tisch-form { display: none; }
+.beamer .management-only, .beamer .turnier-kopf button, .beamer .erfassungsart, .beamer .tisch-form, .beamer .einstellungs-form { display: none; }
 .beamer .app { width: min(1800px, 100%); }
 .beamer .beamer-panel { font-size: clamp(1rem, 1.4vw, 1.35rem); }
 .beamer-spiele { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: .8rem; margin-bottom: 1.5rem; }

@@ -195,6 +195,12 @@ function tischanzahl(mixed $value): ?int
     return $value;
 }
 
+function gewinnsatzanzahl(mixed $value): int
+{
+    if (!is_int($value) || !in_array($value, [2, 3], true)) throw new ApiError('Bitte 2 oder 3 Gewinnsätze auswählen.');
+    return $value;
+}
+
 function satzErgebnis(array $saetze, int $gewinnsaetze): array
 {
     if (!$saetze) return [null, null];
@@ -339,6 +345,20 @@ try {
         $result = withStore(function (array &$turniere) use ($payload, $id): array {
             $index = turnierIndex($turniere, (int) $id); pruefeVersion($turniere[$index], $payload);
             $turniere[$index]['anzahlTische'] = tischanzahl($payload['anzahlTische'] ?? null);
+            $turniere[$index]['version']++; return ['turnier' => $turniere[$index]];
+        }, true);
+        respond($result);
+    }
+    if ($method === 'PUT' && $action === 'spielwertung') {
+        $payload = body(); $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT);
+        $result = withStore(function (array &$turniere) use ($payload, $id): array {
+            $index = turnierIndex($turniere, (int) $id); pruefeVersion($turniere[$index], $payload);
+            foreach ($turniere[$index]['runden'] as $runde) foreach ($runde as $spiel) {
+                if (($spiel['punkteA'] ?? null) !== null || ($spiel['punkteB'] ?? null) !== null) {
+                    throw new ApiError('Die Spielwertung kann nur vor dem ersten eingetragenen Ergebnis geändert werden.');
+                }
+            }
+            $turniere[$index]['gewinnsaetze'] = gewinnsatzanzahl($payload['gewinnsaetze'] ?? null);
             $turniere[$index]['version']++; return ['turnier' => $turniere[$index]];
         }, true);
         respond($result);

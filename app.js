@@ -267,6 +267,26 @@ const renderDetails = () => {
   schalter.addEventListener('change', () => { state.satzweise = schalter.checked; renderDetails(); });
   erfassung.append(schalter, document.createTextNode(' Sätze einzeln erfassen')); details.append(erfassung);
 
+  const wertungsForm = el('form', undefined, 'toolbar einstellungs-form');
+  const wertungsLabel = el('label', 'Spielwertung');
+  const wertungsAuswahl = el('select');
+  for (const ziel of [2, 3]) {
+    const option = el('option', `${ziel} Gewinnsätze (Best of ${ziel * 2 - 1})`); option.value = ziel;
+    option.selected = gewinnsaetze(turnier) === ziel; wertungsAuswahl.append(option);
+  }
+  const wertungsButton = el('button', 'Spielwertung speichern', 'secondary'); wertungsButton.type = 'submit';
+  const wertungGesperrt = fortschritt.fertig > 0;
+  wertungsAuswahl.disabled = wertungGesperrt; wertungsButton.disabled = wertungGesperrt;
+  wertungsLabel.append(wertungsAuswahl); wertungsForm.append(wertungsLabel, wertungsButton);
+  if (wertungGesperrt) wertungsForm.append(el('span', 'Nur vor dem ersten Ergebnis änderbar.', 'muted'));
+  wertungsForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const ziel = Number(wertungsAuswahl.value);
+    if (ziel === gewinnsaetze(turnier)) return;
+    void mutation(`spielwertung&turnier=${turnier.id}`, { version: turnier.version, gewinnsaetze: ziel }, 'Spielwertung gespeichert.');
+  });
+  details.append(wertungsForm);
+
   const tischForm = el('form', undefined, 'toolbar tisch-form');
   const tischLabel = el('label', 'Verfügbare Tische (optional)');
   const tischInput = el('input'); tischInput.type = 'number'; tischInput.min = '1'; tischInput.max = '32'; tischInput.value = turnier.anzahlTische ?? ''; tischInput.placeholder = 'offen';

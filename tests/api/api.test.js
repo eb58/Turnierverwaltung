@@ -57,10 +57,19 @@ test('API speichert Turnier, Ergebnisse, Namen und Sicherungen versionssicher', 
   assert.equal(angelegt.payload.turnier.teilnehmer[0].name, 'A1 / B1');
   assert.equal(angelegt.payload.turnier.gewinnsaetze, 2);
 
-  const turnier = angelegt.payload.turnier;
+  const aufBestOfFive = await anfrage(`spielwertung&turnier=${angelegt.payload.turnier.id}`, 'PUT', { version: angelegt.payload.turnier.version, gewinnsaetze: 3 });
+  assert.equal(aufBestOfFive.status, 200);
+  assert.equal(aufBestOfFive.payload.turnier.gewinnsaetze, 3);
+  const zurueckAufBestOfThree = await anfrage(`spielwertung&turnier=${angelegt.payload.turnier.id}`, 'PUT', { version: aufBestOfFive.payload.turnier.version, gewinnsaetze: 2 });
+  assert.equal(zurueckAufBestOfThree.status, 200);
+
+  const turnier = zurueckAufBestOfThree.payload.turnier;
   const ergebnis = await anfrage(`ergebnis&turnier=${turnier.id}&spiel=${turnier.runden[0][0].id}`, 'PUT', { version: turnier.version, punkteA: 2, punkteB: 1 });
   assert.equal(ergebnis.status, 200);
   assert.equal(ergebnis.payload.turnier.runden[0][0].status, 'fertig');
+
+  const gesperrteSpielwertung = await anfrage(`spielwertung&turnier=${turnier.id}`, 'PUT', { version: ergebnis.payload.turnier.version, gewinnsaetze: 3 });
+  assert.equal(gesperrteSpielwertung.status, 400);
 
   const konflikt = await anfrage(`tische&turnier=${turnier.id}`, 'PUT', { version: 1, anzahlTische: 3 });
   assert.equal(konflikt.status, 409);
