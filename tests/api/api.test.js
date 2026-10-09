@@ -52,18 +52,38 @@ after(async () => {
 
 test('API speichert Turnier, Ergebnisse, Namen und Sicherungen versionssicher', async () => {
   const teilnehmer = Array.from({ length: 5 }, (_, index) => ({ spieler: [{ name: `A${index + 1}` }, { name: `B${index + 1}` }] }));
-  const angelegt = await anfrage('anlegen', 'POST', { titel: 'API-Test', modus: 'jeder-gegen-jeden', gewinnsaetze: 2, teilnehmer, anzahlTische: 2 });
+  const angelegt = await anfrage('anlegen', 'POST', { titel: 'API-Test', modus: 'jeder-gegen-jeden', gewinnsaetze: 2, satzweise: false, teilnehmer, anzahlTische: 2 });
   assert.equal(angelegt.status, 201);
   assert.equal(angelegt.payload.turnier.teilnehmer[0].name, 'A1 / B1');
   assert.equal(angelegt.payload.turnier.gewinnsaetze, 2);
+  assert.equal(angelegt.payload.turnier.satzweise, false);
 
-  const aufBestOfFive = await anfrage(`spielwertung&turnier=${angelegt.payload.turnier.id}`, 'PUT', { version: angelegt.payload.turnier.version, gewinnsaetze: 3 });
+  const gemeinsamGeaendert = await anfrage(`turnier&turnier=${angelegt.payload.turnier.id}`, 'PUT', {
+    version: angelegt.payload.turnier.version, titel: 'API-Test geändert', modus: 'jeder-gegen-jeden',
+    gewinnsaetze: 2, satzweise: false, anzahlTische: 3, teilnehmer: angelegt.payload.turnier.teilnehmer,
+  });
+  assert.equal(gemeinsamGeaendert.status, 200);
+  assert.equal(gemeinsamGeaendert.payload.turnier.titel, 'API-Test geändert');
+  assert.equal(gemeinsamGeaendert.payload.turnier.anzahlTische, 3);
+
+  const aufBestOfFive = await anfrage(`spielwertung&turnier=${angelegt.payload.turnier.id}`, 'PUT', { version: gemeinsamGeaendert.payload.turnier.version, gewinnsaetze: 3 });
   assert.equal(aufBestOfFive.status, 200);
   assert.equal(aufBestOfFive.payload.turnier.gewinnsaetze, 3);
   const zurueckAufBestOfThree = await anfrage(`spielwertung&turnier=${angelegt.payload.turnier.id}`, 'PUT', { version: aufBestOfFive.payload.turnier.version, gewinnsaetze: 2 });
   assert.equal(zurueckAufBestOfThree.status, 200);
 
-  const turnier = zurueckAufBestOfThree.payload.turnier;
+  const vorErgaenzung = zurueckAufBestOfThree.payload.turnier;
+  const ergaenztePaare = vorErgaenzung.teilnehmer.map(paar => ({ id: paar.id, spieler: paar.spieler }));
+  ergaenztePaare.push({ id: 6, spieler: [{ name: 'A6' }, { name: 'B6' }] });
+  const ergaenzt = await anfrage(`teilnehmer&turnier=${vorErgaenzung.id}`, 'PUT', { version: vorErgaenzung.version, teilnehmer: ergaenztePaare });
+  assert.equal(ergaenzt.status, 200);
+  assert.equal(ergaenzt.payload.turnier.teilnehmer.length, 6);
+  assert.equal(ergaenzt.payload.turnier.runden.length, 5);
+  const wiederReduziert = await anfrage(`teilnehmer&turnier=${vorErgaenzung.id}`, 'PUT', { version: ergaenzt.payload.turnier.version, teilnehmer: ergaenztePaare.slice(0, 5) });
+  assert.equal(wiederReduziert.status, 200);
+  assert.equal(wiederReduziert.payload.turnier.teilnehmer.length, 5);
+
+  const turnier = wiederReduziert.payload.turnier;
   const ergebnis = await anfrage(`ergebnis&turnier=${turnier.id}&spiel=${turnier.runden[0][0].id}`, 'PUT', { version: turnier.version, punkteA: 2, punkteB: 1 });
   assert.equal(ergebnis.status, 200);
   assert.equal(ergebnis.payload.turnier.runden[0][0].status, 'fertig');
@@ -71,12 +91,26 @@ test('API speichert Turnier, Ergebnisse, Namen und Sicherungen versionssicher', 
   const gesperrteSpielwertung = await anfrage(`spielwertung&turnier=${turnier.id}`, 'PUT', { version: ergebnis.payload.turnier.version, gewinnsaetze: 3 });
   assert.equal(gesperrteSpielwertung.status, 400);
 
+  const gesperrterModus = await anfrage(`turnier&turnier=${turnier.id}`, 'PUT', {
+    version: ergebnis.payload.turnier.version, titel: turnier.titel, modus: 'ko', gewinnsaetze: 2,
+    satzweise: false, anzahlTische: 3, teilnehmer: turnier.teilnehmer,
+  });
+  assert.equal(gesperrterModus.status, 400);
+
+  const zuSpaetErgaenzt = [...ergaenztePaare, { id: 7, spieler: [{ name: 'A7' }, { name: 'B7' }] }];
+  const gesperrteErgaenzung = await anfrage(`teilnehmer&turnier=${turnier.id}`, 'PUT', { version: ergebnis.payload.turnier.version, teilnehmer: zuSpaetErgaenzt });
+  assert.equal(gesperrteErgaenzung.status, 400);
+
+  const erfassungsart = await anfrage(`erfassungsart&turnier=${turnier.id}`, 'PUT', { version: ergebnis.payload.turnier.version, satzweise: true });
+  assert.equal(erfassungsart.status, 200);
+  assert.equal(erfassungsart.payload.turnier.satzweise, true);
+
   const konflikt = await anfrage(`tische&turnier=${turnier.id}`, 'PUT', { version: 1, anzahlTische: 3 });
   assert.equal(konflikt.status, 409);
 
-  const geaendertePaare = ergebnis.payload.turnier.teilnehmer.map(paar => ({ id: paar.id, spieler: paar.spieler.map(spieler => ({ name: spieler.name })) }));
+  const geaendertePaare = erfassungsart.payload.turnier.teilnehmer.map(paar => ({ id: paar.id, spieler: paar.spieler.map(spieler => ({ name: spieler.name })) }));
   geaendertePaare[0].spieler[0].name = 'Neuer Name';
-  const namen = await anfrage(`teilnehmer&turnier=${turnier.id}`, 'PUT', { version: ergebnis.payload.turnier.version, teilnehmer: geaendertePaare });
+  const namen = await anfrage(`teilnehmer&turnier=${turnier.id}`, 'PUT', { version: erfassungsart.payload.turnier.version, teilnehmer: geaendertePaare });
   assert.equal(namen.status, 200);
   assert.equal(namen.payload.turnier.teilnehmer[0].name, 'Neuer Name / B1');
   assert.equal(namen.payload.turnier.runden[0][0].punkteA, 2);

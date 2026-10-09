@@ -8,14 +8,14 @@ const el = (tag, text, className = '') => {
   return node;
 };
 
-const state = { turniere: [], ausgewaehlt: null, busy: false, satzweise: false, beamer: new URLSearchParams(location.search).has('beamer') };
+const state = { turniere: [], ausgewaehlt: null, busy: false, beamer: new URLSearchParams(location.search).has('beamer') };
 const form = $('turnierForm');
 const paare = $('paare');
 const details = $('details');
 const auswahl = $('turnierAuswahl');
 const appDialog = $('appDialog');
-const paareDialog = $('paareDialog');
-let bearbeitetesTurnier;
+const turnierDialog = $('turnierDialog');
+let bearbeitetesTurnierId = null;
 let dialogResolve;
 
 const dialogBeenden = wert => {
@@ -47,43 +47,6 @@ $('dialogForm').addEventListener('submit', event => {
 });
 appDialog.addEventListener('cancel', event => { event.preventDefault(); dialogBeenden(null); });
 
-const paareDialogOeffnen = turnier => {
-  bearbeitetesTurnier = turnier;
-  const container = $('paareBearbeiten'); container.replaceChildren();
-  for (const teilnehmer of turnier.teilnehmer) {
-    const feld = el('fieldset'); feld.dataset.id = teilnehmer.id;
-    feld.append(el('legend', `Paar ${teilnehmer.id}`));
-    teilnehmer.spieler.forEach((spieler, index) => {
-      const label = el('label'); label.append(el('span', `Spieler ${index + 1}`));
-      const input = el('input'); input.value = spieler.name; input.required = true; input.maxLength = 100;
-      label.append(input); feld.append(label);
-    });
-    container.append(feld);
-  }
-  paareDialog.showModal();
-  container.querySelector('input')?.focus();
-};
-
-$('paareAbbrechen').addEventListener('click', () => paareDialog.close());
-paareDialog.addEventListener('cancel', event => { event.preventDefault(); paareDialog.close(); });
-$('paareDialogForm').addEventListener('submit', async event => {
-  event.preventDefault();
-  const turnier = bearbeitetesTurnier;
-  if (!turnier) return;
-  const teilnehmer = [...$('paareBearbeiten').children].map(feld => ({
-    id: Number(feld.dataset.id),
-    spieler: [...feld.querySelectorAll('input')].map(input => ({ name: input.value.trim() })),
-  }));
-  setBusy(true); meldung('');
-  try {
-    const result = await request(`teilnehmer&turnier=${turnier.id}`, { method: 'PUT', body: JSON.stringify({ version: turnier.version, teilnehmer }) });
-    state.turniere = state.turniere.map(item => item.id === result.turnier.id ? result.turnier : item);
-    paareDialog.close(); bearbeitetesTurnier = null;
-    render(); meldung('Spielernamen gespeichert.', 'erfolg');
-  } catch (error) { meldung(error.message); }
-  finally { setBusy(false); }
-});
-
 let meldungsTimer;
 const meldung = (text, typ = 'fehler') => {
   clearTimeout(meldungsTimer);
@@ -95,7 +58,7 @@ const meldung = (text, typ = 'fehler') => {
 
 const setBusy = busy => {
   state.busy = busy;
-  document.querySelectorAll('button, input, select').forEach(node => { node.disabled = busy; });
+  document.querySelectorAll('button, input, select').forEach(node => { node.disabled = busy || node.dataset.gesperrt === 'true'; });
 };
 
 const request = async (action = '', options = {}) => {
@@ -115,21 +78,42 @@ const gueltigesErgebnis = (a, b, ziel) => Number.isInteger(a) && Number.isIntege
   && ((a === ziel && b >= 0 && b < ziel) || (b === ziel && a >= 0 && a < ziel));
 
 const aktualisiereAnzahl = () => { $('anzahl').textContent = `${paare.children.length} Doppelpaare · erlaubt: 5 bis 32`; };
+const paareNeuNummerieren = container => {
+  [...container.children].forEach((feld, index) => {
+    const nummer = index + 1; feld.dataset.id = nummer;
+    feld.querySelector('legend').textContent = `Paar ${nummer}`;
+    [...feld.querySelectorAll('input')].forEach((input, position) => input.setAttribute('aria-label', `Paar ${nummer}, Spieler ${position + 1}`));
+    feld.querySelector('.paar-loeschen')?.setAttribute('aria-label', `Paar ${nummer} löschen`);
+  });
+  container.querySelectorAll('.paar-loeschen').forEach(button => {
+    button.dataset.gesperrt = String(container.children.length <= 5);
+    button.disabled = container.children.length <= 5;
+  });
+  if (container === paare) aktualisiereAnzahl();
+};
+const paarFeldHinzufuegen = (container, spieler = [{ name: '' }, { name: '' }]) => {
+  const nummer = container.children.length + 1;
+  const feld = el('fieldset', undefined, 'paar'); feld.dataset.id = nummer;
+  feld.append(el('legend', `Paar ${nummer}`));
+  spieler.forEach((person, index) => {
+    const box = el('div', undefined, 'person');
+    const input = el('input'); input.value = person.name; input.required = true; input.maxLength = 100;
+    input.placeholder = `Name Spieler ${index + 1}`;
+    input.setAttribute('aria-label', `Paar ${nummer}, Spieler ${index + 1}`);
+    box.append(input); feld.append(box);
+  });
+  const loeschen = el('button', '🗑', 'paar-loeschen small danger'); loeschen.type = 'button';
+  loeschen.setAttribute('aria-label', `Paar ${nummer} löschen`); loeschen.title = 'Paar löschen';
+  loeschen.addEventListener('click', () => {
+    if (container.children.length <= 5) return;
+    feld.remove(); paareNeuNummerieren(container);
+  });
+  feld.append(loeschen);
+  container.append(feld); paareNeuNummerieren(container); return feld;
+};
 const addPaar = () => {
   if (paare.children.length >= 32) return;
-  const nummer = paare.children.length + 1;
-  const feld = el('fieldset', undefined, 'paar');
-  feld.append(el('legend', `Paar ${nummer}`));
-  for (let position = 1; position <= 2; position++) {
-    const box = el('div', undefined, 'person');
-    const input = el('input');
-    input.required = true;
-    input.maxLength = 100;
-    input.placeholder = `Name Spieler ${position}`;
-    input.setAttribute('aria-label', `Paar ${nummer}, Spieler ${position}`);
-    box.append(input); feld.append(box);
-  }
-  paare.append(feld); aktualisiereAnzahl();
+  paarFeldHinzufuegen(paare); aktualisiereAnzahl();
 };
 
 const renderTabelle = turnier => {
@@ -177,6 +161,11 @@ const aktuelleRundeIndex = turnier => {
 };
 
 const rundenTitel = (turnier, index) => {
+  if (turnier.modus === 'ko' && turnier.koSchema === 'kompakt') {
+    let paare = turnier.teilnehmer.length;
+    for (let r = 0; r < index; r++) paare = Math.ceil(paare / 2);
+    return paare <= 2 ? 'Finale' : paare <= 4 ? 'Halbfinale' : paare <= 8 ? 'Viertelfinale' : paare <= 16 ? 'Achtelfinale' : 'Sechzehntelfinale';
+  }
   const rest = turnier.runden.length - index;
   return turnier.modus === 'ko'
     ? (rest === 1 ? 'Finale' : rest === 2 ? 'Halbfinale' : rest === 3 ? 'Viertelfinale' : `Runde ${index + 1}`)
@@ -229,71 +218,8 @@ const renderDetails = () => {
   const names = new Map(turnier.teilnehmer.map(item => [item.id, item.name]));
   const fortschritt = turnierFortschritt(turnier);
   const kopf = el('div', undefined, 'turnier-kopf toolbar');
-  const kopfAktionen = el('div', undefined, 'toolbar');
-  const spielerAendern = el('button', 'Spielernamen ändern', 'secondary'); spielerAendern.type = 'button';
-  spielerAendern.addEventListener('click', () => paareDialogOeffnen(turnier));
-  const umbenennen = el('button', 'Umbenennen', 'secondary'); umbenennen.type = 'button';
-  umbenennen.addEventListener('click', async () => {
-    const titel = await dialogOeffnen({ titel: 'Turnier umbenennen', text: 'Gib einen neuen Namen für das Turnier ein.', eingabe: turnier.titel, bestaetigung: 'Speichern' });
-    if (titel === null || titel === turnier.titel) return;
-    void mutation(`umbenennen&turnier=${turnier.id}`, { version: turnier.version, titel }, 'Turnier umbenannt.');
-  });
-  const istTestturnier = turnier.titel.trim().toLocaleLowerCase('de') === 'testturnier';
-  const loeschen = el('button', istTestturnier ? 'Testturnier löschen' : 'Turnier löschen', 'danger'); loeschen.type = 'button';
-  loeschen.addEventListener('click', async () => {
-    if (!await dialogOeffnen({
-      titel: 'Turnier löschen?',
-      text: 'Turnier und alle Ergebnisse endgültig löschen: ',
-      hervorhebung: `„${turnier.titel}“`,
-      bestaetigung: 'Endgültig löschen',
-      gefahr: true,
-    })) return;
-    setBusy(true); meldung('');
-    try {
-      await request(`loeschen&turnier=${turnier.id}`, { method: 'DELETE', body: JSON.stringify({ version: turnier.version }) });
-      state.turniere = state.turniere.filter(item => item.id !== turnier.id);
-      state.ausgewaehlt = state.turniere[0]?.id ?? null;
-      render();
-      meldung(`${istTestturnier ? 'Testturnier' : 'Turnier'} gelöscht.`, 'erfolg');
-    } catch (error) { meldung(error.message); }
-    finally { setBusy(false); }
-  });
-  kopfAktionen.append(spielerAendern, umbenennen, loeschen);
-  kopf.append(el('h2', turnier.titel), kopfAktionen);
+  kopf.append(el('h2', turnier.titel));
   details.append(kopf, el('p', `${modusName(turnier.modus)} · ${wertungsName(turnier)} · ${turnier.teilnehmer.length} Doppelpaare · ${fortschritt.fertig} von ${fortschritt.gesamt} Spielen abgeschlossen`, 'muted'));
-
-  const erfassung = el('label', undefined, 'erfassungsart');
-  const schalter = el('input'); schalter.type = 'checkbox'; schalter.role = 'switch'; schalter.checked = state.satzweise;
-  schalter.addEventListener('change', () => { state.satzweise = schalter.checked; renderDetails(); });
-  erfassung.append(schalter, document.createTextNode(' Sätze einzeln erfassen')); details.append(erfassung);
-
-  const wertungsForm = el('form', undefined, 'toolbar einstellungs-form');
-  const wertungsLabel = el('label', 'Spielwertung');
-  const wertungsAuswahl = el('select');
-  for (const ziel of [2, 3]) {
-    const option = el('option', `${ziel} Gewinnsätze (Best of ${ziel * 2 - 1})`); option.value = ziel;
-    option.selected = gewinnsaetze(turnier) === ziel; wertungsAuswahl.append(option);
-  }
-  const wertungsButton = el('button', 'Spielwertung speichern', 'secondary'); wertungsButton.type = 'submit';
-  const wertungGesperrt = fortschritt.fertig > 0;
-  wertungsAuswahl.disabled = wertungGesperrt; wertungsButton.disabled = wertungGesperrt;
-  wertungsLabel.append(wertungsAuswahl); wertungsForm.append(wertungsLabel, wertungsButton);
-  if (wertungGesperrt) wertungsForm.append(el('span', 'Nur vor dem ersten Ergebnis änderbar.', 'muted'));
-  wertungsForm.addEventListener('submit', event => {
-    event.preventDefault();
-    const ziel = Number(wertungsAuswahl.value);
-    if (ziel === gewinnsaetze(turnier)) return;
-    void mutation(`spielwertung&turnier=${turnier.id}`, { version: turnier.version, gewinnsaetze: ziel }, 'Spielwertung gespeichert.');
-  });
-  details.append(wertungsForm);
-
-  const tischForm = el('form', undefined, 'toolbar tisch-form');
-  const tischLabel = el('label', 'Verfügbare Tische (optional)');
-  const tischInput = el('input'); tischInput.type = 'number'; tischInput.min = '1'; tischInput.max = '32'; tischInput.value = turnier.anzahlTische ?? ''; tischInput.placeholder = 'offen';
-  const tischButton = el('button', 'Tischanzahl speichern', 'secondary'); tischButton.type = 'submit';
-  tischLabel.append(tischInput); tischForm.append(tischLabel, tischButton);
-  tischForm.addEventListener('submit', event => { event.preventDefault(); void mutation(`tische&turnier=${turnier.id}`, { version: turnier.version, anzahlTische: tischInput.value ? Number(tischInput.value) : null }, 'Tischanzahl gespeichert.'); });
-  details.append(tischForm);
 
   if (turnier.modus === 'jeder-gegen-jeden') {
     details.append(el('h3', 'Tabelle'), renderTabelle(turnier));
@@ -330,7 +256,7 @@ const renderDetails = () => {
         card.append(el('p', spiel.status === 'freilos' ? 'Automatisch weiter' : 'Vorherige Spiele sind noch offen', 'muted'));
       } else {
         const ergebnisForm = el('form', undefined, 'ergebnis');
-        if (state.satzweise) {
+        if (turnier.satzweise) {
           for (let index = 0; index < gewinnsaetze(turnier) * 2 - 1; index++) {
             const row = el('div', undefined, 'satz'); row.append(el('span', `Satz ${index + 1}`));
             for (const key of ['a', 'b']) {
@@ -348,7 +274,7 @@ const renderDetails = () => {
         const save = el('button', 'Speichern', 'small'); save.type = 'submit'; ergebnisForm.append(save);
         ergebnisForm.addEventListener('submit', async event => {
           event.preventDefault();
-          if (!state.satzweise) {
+          if (!turnier.satzweise) {
             const wertA = ergebnisForm.elements.punkteA.value, wertB = ergebnisForm.elements.punkteB.value;
             if (wertA === '' && wertB === '') {
               if (spiel.status !== 'fertig') { meldung('Bitte ein Spielergebnis eingeben.'); return; }
@@ -398,6 +324,10 @@ const render = () => {
   }
   if (!state.turniere.some(turnier => turnier.id === state.ausgewaehlt)) state.ausgewaehlt = state.turniere[0]?.id ?? null;
   auswahl.value = state.ausgewaehlt ?? '';
+  $('turnierBearbeiten').dataset.gesperrt = String(state.ausgewaehlt === null);
+  $('turnierBearbeiten').disabled = state.ausgewaehlt === null;
+  $('turnierLoeschen').dataset.gesperrt = String(state.ausgewaehlt === null);
+  $('turnierLoeschen').disabled = state.ausgewaehlt === null;
   renderDetails();
 };
 
@@ -409,23 +339,42 @@ const load = async () => {
   finally { setBusy(false); }
 };
 
-const turnierAnlegen = async ({ titel, modus, gewinnsaetze: ziel, teilnehmer }) => {
-  setBusy(true); meldung('');
-  try {
-    const result = await request('anlegen', {
-      method: 'POST',
-      body: JSON.stringify({ titel, modus, gewinnsaetze: ziel, teilnehmer, anzahlTische: null }),
-    });
-    state.turniere.unshift(result.turnier);
-    state.ausgewaehlt = result.turnier.id;
-    render();
-    form.reset();
-    paare.replaceChildren();
-    for (let index = 0; index < 8; index++) addPaar();
-    $('anlegenPanel').open = false;
-    meldung('Turnier angelegt.', 'erfolg');
-  } catch (error) { meldung(error.message); }
-  finally { setBusy(false); }
+const turnierFormZuruecksetzen = () => {
+  bearbeitetesTurnierId = null;
+  form.reset();
+  delete form.elements.modus.dataset.gesperrt;
+  delete form.elements.gewinnsaetze.dataset.gesperrt;
+  form.elements.modus.disabled = false;
+  form.elements.gewinnsaetze.disabled = false;
+  $('paarHinzufuegen').hidden = false;
+  $('fantasiePaar').hidden = false;
+  $('turnierFormTitel').textContent = 'Neues Turnier anlegen';
+  $('turnierSpeichern').textContent = 'Turnier anlegen';
+  paare.replaceChildren();
+  for (let index = 0; index < 8; index++) addPaar();
+};
+
+const turnierFormOeffnen = turnier => {
+  bearbeitetesTurnierId = turnier.id;
+  form.elements.titel.value = turnier.titel;
+  form.elements.modus.value = turnier.modus;
+  form.elements.gewinnsaetze.value = String(gewinnsaetze(turnier));
+  form.elements.satzweise.value = turnier.satzweise ? '1' : '0';
+  form.elements.anzahlTische.value = turnier.anzahlTische ?? '';
+  paare.replaceChildren();
+  turnier.teilnehmer.forEach(teilnehmer => paarFeldHinzufuegen(paare, teilnehmer.spieler));
+  aktualisiereAnzahl();
+  const begonnen = turnier.runden.flat().some(spiel => spiel.punkteA !== null || spiel.punkteB !== null);
+  form.elements.modus.disabled = begonnen;
+  form.elements.gewinnsaetze.disabled = begonnen;
+  form.elements.modus.dataset.gesperrt = String(begonnen);
+  form.elements.gewinnsaetze.dataset.gesperrt = String(begonnen);
+  $('paarHinzufuegen').hidden = begonnen;
+  $('fantasiePaar').hidden = begonnen;
+  paare.querySelectorAll('.paar-loeschen').forEach(button => { button.hidden = begonnen; });
+  $('turnierFormTitel').textContent = 'Turnier bearbeiten';
+  $('turnierSpeichern').textContent = 'Änderungen speichern';
+  turnierDialog.showModal();
 };
 
 form.addEventListener('submit', async event => {
@@ -441,8 +390,57 @@ form.addEventListener('submit', async event => {
     }
     teilnehmer.push({ spieler });
   }
-  await turnierAnlegen({ titel: form.elements.titel.value.trim(), modus: form.elements.modus.value, gewinnsaetze: Number(form.elements.gewinnsaetze.value), teilnehmer });
+  const bestehend = state.turniere.find(turnier => turnier.id === bearbeitetesTurnierId);
+  const payload = {
+    titel: form.elements.titel.value.trim(),
+    modus: form.elements.modus.value,
+    gewinnsaetze: Number(form.elements.gewinnsaetze.value),
+    satzweise: form.elements.satzweise.value === '1',
+    anzahlTische: form.elements.anzahlTische.value ? Number(form.elements.anzahlTische.value) : null,
+    teilnehmer,
+    ...(bestehend ? { version: bestehend.version } : {}),
+  };
+  setBusy(true); meldung('');
+  try {
+    const result = await request(bestehend ? `turnier&turnier=${bestehend.id}` : 'anlegen', {
+      method: bestehend ? 'PUT' : 'POST', body: JSON.stringify(payload),
+    });
+    if (bestehend) state.turniere = state.turniere.map(turnier => turnier.id === result.turnier.id ? result.turnier : turnier);
+    else state.turniere.unshift(result.turnier);
+    state.ausgewaehlt = result.turnier.id;
+    turnierDialog.close();
+    turnierFormZuruecksetzen();
+    render(); meldung(bestehend ? 'Turnier geändert.' : 'Turnier angelegt.', 'erfolg');
+  } catch (error) { meldung(error.message); }
+  finally { setBusy(false); }
 });
+
+$('neuesTurnier').addEventListener('click', () => { turnierFormZuruecksetzen(); turnierDialog.showModal(); });
+$('turnierBearbeiten').addEventListener('click', () => {
+  const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
+  if (turnier) turnierFormOeffnen(turnier);
+});
+$('turnierLoeschen').addEventListener('click', async () => {
+  const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
+  if (!turnier) return;
+  if (!await dialogOeffnen({
+    titel: 'Turnier löschen?',
+    text: 'Turnier und alle Ergebnisse endgültig löschen: ',
+    hervorhebung: `„${turnier.titel}“`,
+    bestaetigung: 'Endgültig löschen',
+    gefahr: true,
+  })) return;
+  setBusy(true); meldung('');
+  try {
+    await request(`loeschen&turnier=${turnier.id}`, { method: 'DELETE', body: JSON.stringify({ version: turnier.version }) });
+    state.turniere = state.turniere.filter(item => item.id !== turnier.id);
+    state.ausgewaehlt = state.turniere[0]?.id ?? null;
+    render(); meldung('Turnier gelöscht.', 'erfolg');
+  } catch (error) { meldung(error.message); }
+  finally { setBusy(false); }
+});
+$('turnierAbbrechen').addEventListener('click', () => { turnierDialog.close(); turnierFormZuruecksetzen(); });
+turnierDialog.addEventListener('cancel', () => turnierFormZuruecksetzen());
 
 $('fantasiePaar').addEventListener('click', () => {
   const kandidaten = ['Anna', 'Ben', 'Clara', 'David', 'Eva', 'Felix', 'Greta', 'Hannes', 'Ida', 'Jonas', 'Klara', 'Lukas', 'Mara', 'Noah', 'Olivia', 'Paul', 'Amelie', 'Bruno', 'Carlotta', 'Daniel', 'Elena', 'Finn', 'Hanna', 'Jakob', 'Lea', 'Max', 'Nina', 'Oskar', 'Pia', 'Rafael', 'Sarah', 'Theo', 'Ulla', 'Viktor', 'Wilma', 'Yannik', 'Zoe', 'Alina', 'Bastian', 'Celine', 'Dominik', 'Elisa', 'Fabian', 'Gisela', 'Henrik', 'Ines', 'Julian', 'Katharina', 'Leon', 'Miriam', 'Niklas', 'Ophelia', 'Philipp', 'Ronja', 'Sebastian', 'Tabea', 'Ulrich', 'Valerie', 'Werner', 'Xenia', 'Yara', 'Zora', 'Moritz', 'Sophie'];
@@ -458,8 +456,6 @@ $('fantasiePaar').addEventListener('click', () => {
 });
 
 $('paarHinzufuegen').addEventListener('click', addPaar);
-$('paarEntfernen').addEventListener('click', () => { if (paare.children.length > 5) { paare.lastElementChild.remove(); aktualisiereAnzahl(); } });
-$('neuLaden').addEventListener('click', () => { void load(); });
 auswahl.addEventListener('change', () => { state.ausgewaehlt = Number(auswahl.value); renderDetails(); });
 
 $('beamerAnsicht').addEventListener('click', () => {
@@ -496,7 +492,7 @@ $('importDatei').addEventListener('change', async event => {
   finally { setBusy(false); }
 });
 
-for (let index = 0; index < 8; index++) addPaar();
+turnierFormZuruecksetzen();
 document.body.classList.toggle('beamer', state.beamer);
 if (state.beamer) setInterval(() => { if (!document.hidden) void load(); }, 15000);
 void load();

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f766e">
   <title>Turnierverwaltung</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230f766e'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='white'%3E%E2%86%94%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css?v=9">
+  <link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body>
   <main class="app">
@@ -21,20 +21,22 @@
       <div class="toolbar">
         <label for="turnierAuswahl">Turnier</label>
         <select id="turnierAuswahl" aria-label="Turnier auswählen"></select>
-        <button id="neuLaden" class="secondary" type="button">Neu laden</button>
+        <button id="turnierBearbeiten" class="secondary management-only" type="button">Turnier ändern</button>
+        <button id="turnierLoeschen" class="danger management-only" type="button">Turnier löschen</button>
         <button id="beamerAnsicht" class="secondary management-only" type="button">Beameransicht</button>
         <button id="drucken" class="secondary management-only" type="button">Drucken</button>
         <button id="exportieren" class="secondary management-only" type="button">Exportieren</button>
         <button id="importieren" class="secondary management-only" type="button">Importieren</button>
+        <button id="neuesTurnier" class="management-only neues-turnier" type="button">Neues Turnier anlegen</button>
         <input id="importDatei" type="file" accept="application/json,.json" hidden>
       </div>
     </header>
 
     <div id="meldung" class="meldung" role="alert" hidden></div>
 
-    <details id="anlegenPanel" class="panel management-only">
-      <summary>Neues Turnier anlegen</summary>
+    <dialog id="turnierDialog" class="turnier-dialog" aria-labelledby="turnierFormTitel">
       <form id="turnierForm" class="turnier-form">
+        <h2 id="turnierFormTitel" class="wide">Neues Turnier anlegen</h2>
         <label>Turniername
           <input name="titel" required maxlength="100" placeholder="z. B. Herbstturnier">
         </label>
@@ -50,21 +52,30 @@
             <option value="3">3 Gewinnsätze (Best of 5)</option>
           </select>
         </label>
+        <label>Ergebniserfassung
+          <select name="satzweise">
+            <option value="0">Nur Satzergebnis (z. B. 2:1)</option>
+            <option value="1">Sätze einzeln erfassen</option>
+          </select>
+        </label>
+        <label>Verfügbare Tische (optional)
+          <input name="anzahlTische" type="number" min="1" max="32" placeholder="offen">
+        </label>
         <div class="wide">
           <p class="hint">Je Doppelpaar die Namen der beiden Spieler eingeben. Möglich sind 5 bis 32 Doppelpaare.</p>
           <div id="paare" class="paare"></div>
           <div class="toolbar actions">
             <button id="paarHinzufuegen" class="secondary" type="button">Paar hinzufügen</button>
-            <button id="paarEntfernen" class="secondary" type="button">Letztes Paar entfernen</button>
           </div>
         </div>
         <div class="wide toolbar">
           <span id="anzahl" aria-live="polite"></span>
           <button id="fantasiePaar" class="secondary" type="button">Fantasiepaar einfügen</button>
-          <button type="submit">Turnier anlegen</button>
+          <button id="turnierAbbrechen" class="secondary" type="button">Abbrechen</button>
+          <button id="turnierSpeichern" type="submit">Turnier anlegen</button>
         </div>
       </form>
-    </details>
+    </dialog>
 
     <section id="details" class="panel" aria-label="Spielplan und Ergebnisse"></section>
   </main>
@@ -84,18 +95,6 @@
     </form>
   </dialog>
 
-  <dialog id="paareDialog" class="breiter-dialog" aria-labelledby="paareDialogTitel">
-    <form id="paareDialogForm">
-      <h2 id="paareDialogTitel">Spielernamen ändern</h2>
-      <p>Der Spielplan und bereits gespeicherte Ergebnisse bleiben erhalten.</p>
-      <div id="paareBearbeiten" class="paare-bearbeiten"></div>
-      <div class="dialog-aktionen">
-        <button id="paareAbbrechen" class="secondary" type="button">Abbrechen</button>
-        <button type="submit">Änderungen speichern</button>
-      </div>
-    </form>
-  </dialog>
-
-  <script type="module" src="app.js?v=17"></script>
+  <script type="module" src="app.js?v=29"></script>
 </body>
 </html>

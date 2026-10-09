@@ -32,6 +32,7 @@ h1 { margin-bottom: .15rem; color: var(--accent-dark); font-size: clamp(1.5rem, 
 .brand p, .hint, .muted { color: var(--muted); }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
 .toolbar select { width: auto; min-width: 220px; }
+.neues-turnier { margin-left: .35rem; box-shadow: 0 2px 8px rgba(15, 118, 110, .18); }
 .panel { margin-bottom: 1rem; padding: 1.1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 8px 24px rgba(15, 118, 110, .08); }
 .panel summary { color: var(--accent-dark); cursor: pointer; font-weight: 750; }
 .meldung { position: fixed; z-index: 10; top: 1rem; right: 1rem; max-width: min(420px, calc(100% - 2rem)); padding: .8rem 1rem; color: #991b1b; background: #fee2e2; border: 1px solid #fecaca; border-radius: 10px; box-shadow: 0 8px 24px rgba(15, 23, 42, .18); }
@@ -46,19 +47,17 @@ dialog strong { color: var(--accent-dark); }
 .dialog-aktionen { display: flex; justify-content: flex-end; gap: .65rem; }
 .breiter-dialog { width: min(820px, calc(100% - 2rem)); max-height: calc(100% - 2rem); }
 .breiter-dialog form { max-height: calc(100vh - 2rem); overflow: auto; }
-.paare-bearbeiten { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: .8rem; }
-.paare-bearbeiten fieldset { padding: .8rem; border: 1px solid var(--border); border-radius: 10px; }
-.paare-bearbeiten label + label { margin-top: .55rem; }
-.turnier-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
+.turnier-dialog { width: min(1100px, calc(100% - 2rem)); max-height: calc(100% - 2rem); }
+.turnier-dialog form { max-height: calc(100vh - 2rem); overflow: auto; }
+.turnier-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .turnier-form label { display: grid; gap: .35rem; font-weight: 650; }
 .wide { grid-column: 1 / -1; min-width: 0; }
 .paare { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: .8rem; }
 .paar { padding: .8rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
 .paar legend { color: var(--accent-dark); font-weight: 750; }
+.paar-loeschen { display: block; min-width: 34px; padding-inline: .45rem; margin-left: auto; filter: grayscale(1); }
 .person { margin-bottom: .55rem; }
 .actions { margin-top: .8rem; }
-.erfassungsart { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; }
-.erfassungsart input { width: 20px; min-height: 20px; accent-color: var(--accent); }
 .tisch-form, .einstellungs-form { margin-bottom: 1rem; }
 .tisch-form label { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; }
 .tisch-form input { width: 110px; }
@@ -85,7 +84,7 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
 .satz span { min-width: 54px; }
 .satz input { width: 74px; }
 .erfolg { color: #047857; font-weight: 650; }
-.beamer .management-only, .beamer .turnier-kopf button, .beamer .erfassungsart, .beamer .tisch-form, .beamer .einstellungs-form { display: none; }
+.beamer .management-only, .beamer .turnier-kopf button, .beamer .tisch-form, .beamer .einstellungs-form { display: none; }
 .beamer .app { width: min(1800px, 100%); }
 .beamer .beamer-panel { font-size: clamp(1rem, 1.4vw, 1.35rem); }
 .beamer-spiele { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: .8rem; margin-bottom: 1.5rem; }

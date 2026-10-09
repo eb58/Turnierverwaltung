@@ -52,6 +52,30 @@ test('K.-o. ermittelt für 5 bis 32 Paare mit n-1 Spielen einen Sieger', functio
     }
 });
 
+test('Neun Doppelpaare spielen zuerst vier Begegnungen mit einem Freilos', function (): void {
+    $turnier = neuesTurnier(payload(9, 'ko'), 1);
+    gleich('kompakt', $turnier['koSchema']);
+    gleich(5, count($turnier['runden'][0]));
+    gleich(1, count(array_filter($turnier['runden'][0], fn(array $spiel): bool => $spiel['status'] === 'freilos')));
+    gleich(4, count(array_filter($turnier['runden'][0], fn(array $spiel): bool => $spiel['status'] === 'offen')));
+    gleich([3, 2, 1], array_map('count', array_slice($turnier['runden'], 1)));
+});
+
+test('Ungespielte alte K.-o.-Turniere werden umgestellt, begonnene bleiben erhalten', function (): void {
+    $alt = payload(9, 'ko'); $alt['koSchema'] = 'klassisch';
+    $ungespielt = neuesTurnier($alt, 1);
+    $begonnen = neuesTurnier($alt, 2);
+    $spielId = $begonnen['runden'][0][7]['id'];
+    $begonnen = turnierErgebnis($begonnen, $spielId, ['punkteA' => 2, 'punkteB' => 0]);
+    $turniere = [$ungespielt, $begonnen];
+    ungespielteKoTurniereUmstellen($turniere);
+    gleich('kompakt', $turniere[0]['koSchema']);
+    gleich(5, count($turniere[0]['runden'][0]));
+    gleich($ungespielt['version'] + 1, $turniere[0]['version']);
+    gleich('klassisch', $turniere[1]['koSchema']);
+    gleich(8, count($turniere[1]['runden'][0]));
+});
+
 test('Korrektur eines K.-o.-Siegers setzt nur betroffene Folgespiele zurück', function (): void {
     $turnier = neuesTurnier(payload(8, 'ko'), 1);
     foreach (array_keys($turnier['runden']) as $r) foreach (array_keys($turnier['runden'][$r]) as $s) {
@@ -80,7 +104,8 @@ test('Satzwertung akzeptiert reguläre Ergebnisse und lehnt ungültige ab', func
 });
 
 test('Best of 3 ist Standard und Best of 5 kann gewählt werden', function (): void {
-    gleich(2, neuesTurnier(payload(5), 1)['gewinnsaetze']);
+    $standard = neuesTurnier(payload(5), 1);
+    gleich(2, $standard['gewinnsaetze']); gleich(false, $standard['satzweise']);
     $bestOfFive = payload(5); $bestOfFive['gewinnsaetze'] = 3;
     $turnier = neuesTurnier($bestOfFive, 1);
     gleich(3, $turnier['gewinnsaetze']);
