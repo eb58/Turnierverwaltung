@@ -190,6 +190,11 @@ const addPaar = () => {
   paarFeldHinzufuegen(paare); aktualisiereAnzahl();
 };
 
+const aktualisiereFantasiePaarSichtbarkeit = () => {
+  const istTestturnier = form.elements.titel.value.trim().toLocaleLowerCase('de').includes('test');
+  $('fantasiePaar').hidden = form.dataset.begonnen === 'true' || !istTestturnier;
+};
+
 const renderTabelle = turnier => {
   const wrap = el('div', undefined, 'table-wrap'), table = el('table');
   table.append(el('caption', 'Rangfolge: Siege, Satzdifferenz, direkter Vergleich.'));
@@ -418,13 +423,14 @@ const load = async () => {
 
 const turnierFormZuruecksetzen = () => {
   bearbeitetesTurnierId = null;
+  form.dataset.begonnen = 'false';
   form.reset();
   delete form.elements.modus.dataset.gesperrt;
   delete form.elements.gewinnsaetze.dataset.gesperrt;
   form.elements.modus.disabled = false;
   form.elements.gewinnsaetze.disabled = false;
   $('paarHinzufuegen').hidden = false;
-  $('fantasiePaar').hidden = false;
+  aktualisiereFantasiePaarSichtbarkeit();
   $('turnierFormTitel').textContent = 'Neues Turnier anlegen';
   $('turnierSpeichern').textContent = 'Turnier anlegen';
   paare.replaceChildren();
@@ -442,12 +448,13 @@ const turnierFormOeffnen = turnier => {
   turnier.teilnehmer.forEach(teilnehmer => paarFeldHinzufuegen(paare, teilnehmer.spieler));
   aktualisiereAnzahl();
   const begonnen = turnier.runden.flat().some(spiel => spiel.punkteA !== null || spiel.punkteB !== null);
+  form.dataset.begonnen = String(begonnen);
   form.elements.modus.disabled = begonnen;
   form.elements.gewinnsaetze.disabled = begonnen;
   form.elements.modus.dataset.gesperrt = String(begonnen);
   form.elements.gewinnsaetze.dataset.gesperrt = String(begonnen);
   $('paarHinzufuegen').hidden = begonnen;
-  $('fantasiePaar').hidden = begonnen;
+  aktualisiereFantasiePaarSichtbarkeit();
   paare.querySelectorAll('.paar-loeschen').forEach(button => { button.hidden = begonnen; });
   $('turnierFormTitel').textContent = 'Turnier bearbeiten';
   $('turnierSpeichern').textContent = 'Änderungen speichern';
@@ -520,6 +527,7 @@ $('turnierAbbrechen').addEventListener('click', () => { turnierDialog.close(); t
 turnierDialog.addEventListener('cancel', () => turnierFormZuruecksetzen());
 
 $('fantasiePaar').addEventListener('click', () => {
+  if (!form.elements.titel.value.trim().toLocaleLowerCase('de').includes('test')) return;
   const kandidaten = ['Anna', 'Ben', 'Clara', 'David', 'Eva', 'Felix', 'Greta', 'Hannes', 'Ida', 'Jonas', 'Klara', 'Lukas', 'Mara', 'Noah', 'Olivia', 'Paul', 'Amelie', 'Bruno', 'Carlotta', 'Daniel', 'Elena', 'Finn', 'Hanna', 'Jakob', 'Lea', 'Max', 'Nina', 'Oskar', 'Pia', 'Rafael', 'Sarah', 'Theo', 'Ulla', 'Viktor', 'Wilma', 'Yannik', 'Zoe', 'Alina', 'Bastian', 'Celine', 'Dominik', 'Elisa', 'Fabian', 'Gisela', 'Henrik', 'Ines', 'Julian', 'Katharina', 'Leon', 'Miriam', 'Niklas', 'Ophelia', 'Philipp', 'Ronja', 'Sebastian', 'Tabea', 'Ulrich', 'Valerie', 'Werner', 'Xenia', 'Yara', 'Zora', 'Moritz', 'Sophie'];
   const verwendet = new Set([...paare.querySelectorAll('input')].map(input => input.value.trim().toLocaleLowerCase('de')).filter(Boolean));
   let ziel = [...paare.children].find(paar => [...paar.querySelectorAll('input')].every(input => !input.value.trim()));
@@ -531,6 +539,8 @@ $('fantasiePaar').addEventListener('click', () => {
   ziel.scrollIntoView({ behavior: 'smooth', block: 'center' });
   meldung('Fantasiepaar eingefügt.', 'erfolg');
 });
+
+form.elements.titel.addEventListener('input', aktualisiereFantasiePaarSichtbarkeit);
 
 $('paarHinzufuegen').addEventListener('click', addPaar);
 auswahl.addEventListener('change', () => { state.ausgewaehlt = Number(auswahl.value); renderDetails(); });
