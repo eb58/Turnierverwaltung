@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { turnierFortschritt, turnierTabelle } from '../../turnier-domain.js';
+import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from '../../turnier-domain.js';
 
 const teilnehmer = [1, 2, 3, 4, 5].map(id => ({ id, name: `Paar ${id}` }));
 const spiel = (a, b, punkteA, punkteB) => ({ a, b, punkteA, punkteB, sieger: punkteA > punkteB ? a : b, status: 'fertig' });
@@ -34,4 +34,21 @@ test('Rangfolge verwendet Siege, Satzdifferenz und direkten Vergleich', () => {
 test('Vollständig gleiche Wertung teilt denselben Rang', () => {
   const tabelle = turnierTabelle({ teilnehmer, runden: [] });
   assert.deepEqual(tabelle.map(zeile => zeile.rang), [1, 1, 1, 1, 1]);
+});
+
+test('Platzierungen umfassen die ersten drei Tabellenränge', () => {
+  const drei = teilnehmer.slice(0, 3).map((paar, index) => ({ ...paar, spieler: [{ name: `A${index}` }, { name: `B${index}` }] }));
+  const turnier = { modus: 'jeder-gegen-jeden', teilnehmer: drei, runden: [[
+    spiel(1, 2, 3, 0), spiel(1, 3, 3, 1), spiel(2, 3, 3, 2),
+  ]] };
+  assert.deepEqual(turnierPlatzierungen(turnier).map(paar => [paar.id, paar.platz]), [[1, 1], [2, 2], [3, 3]]);
+});
+
+test('K.-o.-Platzierungen enthalten Sieger, Finalverlierer und beide Halbfinalverlierer', () => {
+  const vier = teilnehmer.slice(0, 4).map((paar, index) => ({ ...paar, spieler: [{ name: `A${index}` }, { name: `B${index}` }] }));
+  const turnier = { modus: 'ko', teilnehmer: vier, runden: [
+    [spiel(1, 2, 3, 1), spiel(3, 4, 3, 2)],
+    [spiel(1, 3, 3, 2)],
+  ] };
+  assert.deepEqual(turnierPlatzierungen(turnier).map(paar => [paar.id, paar.platz]), [[1, 1], [3, 2], [2, 3], [4, 3]]);
 });

@@ -1,4 +1,4 @@
-import { turnierFortschritt, turnierTabelle } from './turnier-domain.js';
+import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=2';
 
 const $ = id => document.getElementById(id);
 const el = (tag, text, className = '') => {
@@ -76,6 +76,70 @@ const gewinnsaetze = turnier => turnier.gewinnsaetze ?? 3;
 const wertungsName = turnier => `${gewinnsaetze(turnier)} Gewinnsätze (Best of ${gewinnsaetze(turnier) * 2 - 1})`;
 const gueltigesErgebnis = (a, b, ziel) => Number.isInteger(a) && Number.isInteger(b)
   && ((a === ziel && b >= 0 && b < ziel) || (b === ziel && a >= 0 && a < ziel));
+
+const turnierIstAbgeschlossen = turnier => {
+  const fortschritt = turnierFortschritt(turnier);
+  return fortschritt.gesamt > 0 && fortschritt.fertig === fortschritt.gesamt;
+};
+
+const htmlSicher = wert => String(wert).replace(/[&<>"']/g, zeichen => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+})[zeichen]);
+
+const siegerurkundenDrucken = turnier => {
+  const paare = turnierPlatzierungen(turnier);
+  if (!paare.length) { meldung('Urkunden sind nach Abschluss des Turniers verfügbar.'); return; }
+  const urkunden = paare.flatMap(paar => paar.spieler.map(spieler => ({
+    name: spieler.name,
+    partner: paar.spieler.find(person => person !== spieler)?.name ?? '',
+    platz: paar.platz,
+  })));
+  const fenster = window.open('', '_blank');
+  if (!fenster) { meldung('Das Urkundenfenster wurde vom Browser blockiert. Bitte Pop-ups für diese Seite erlauben.'); return; }
+  const datum = new Intl.DateTimeFormat('de-DE', { dateStyle: 'long' }).format(new Date());
+  const logo = new URL('reinickendorf-wappen.svg', location.href).href;
+  const seiten = urkunden.map(urkunde => `
+    <main class="urkunde">
+      <div class="rahmen">
+        <img src="${htmlSicher(logo)}" alt="Bezirkssymbol Reinickendorf">
+        <p class="verein">Tischtennis-Doppelturnier</p>
+        <h1>${urkunde.platz === 1 ? 'Siegerurkunde' : 'Urkunde'}</h1>
+        <p class="einleitung">Diese Urkunde wird verliehen an</p>
+        <p class="name">${htmlSicher(urkunde.name)}</p>
+        <p class="leistung">für den <strong>${urkunde.platz}. Platz</strong> beim</p>
+        <h2>${htmlSicher(turnier.titel)}</h2>
+        <p class="doppel">im Doppel mit ${htmlSicher(urkunde.partner)}</p>
+        <div class="abschluss"><span>${htmlSicher(datum)}</span><span>Turnierleitung</span></div>
+      </div>
+    </main>`).join('');
+  fenster.document.write(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Urkunden – ${htmlSicher(turnier.titel)}</title>
+    <style>
+      @page { size: A4 landscape; margin: 0; }
+      * { box-sizing: border-box; }
+      body { margin: 0; color: #173f3a; background: #e8efed; font-family: Georgia, "Times New Roman", serif; }
+      .aktionen { position: fixed; z-index: 2; top: 1rem; right: 1rem; }
+      button { padding: .7rem 1rem; color: white; background: #0f766e; border: 0; border-radius: 8px; font: 700 1rem "Segoe UI", sans-serif; cursor: pointer; }
+      .urkunde { width: 297mm; height: 210mm; padding: 13mm; margin: 0 auto 1rem; background: white; break-after: page; page-break-after: always; }
+      .urkunde:last-child { break-after: auto; page-break-after: auto; }
+      .rahmen { position: relative; display: flex; height: 100%; padding: 12mm 18mm; align-items: center; flex-direction: column; text-align: center; border: 2.5mm double #0f766e; }
+      .rahmen::before, .rahmen::after { content: ""; position: absolute; width: 24mm; height: 24mm; border-color: #d5a62e; }
+      .rahmen::before { top: 5mm; left: 5mm; border-top: 1mm solid #d5a62e; border-left: 1mm solid #d5a62e; }
+      .rahmen::after { right: 5mm; bottom: 5mm; border-right: 1mm solid #d5a62e; border-bottom: 1mm solid #d5a62e; }
+      img { width: 24mm; height: 29mm; object-fit: contain; }
+      p { margin: 0; }
+      .verein { margin-top: 2mm; color: #526b67; font: 600 11pt "Segoe UI", sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+      h1 { margin: 3mm 0 2mm; color: #0f766e; font-size: 31pt; letter-spacing: .05em; }
+      .einleitung, .leistung, .doppel { font-size: 14pt; }
+      .name { margin: 5mm 0; color: #173f3a; font-size: 29pt; font-weight: 700; border-bottom: .5mm solid #d5a62e; }
+      h2 { max-width: 220mm; margin: 3mm 0; color: #173f3a; font-size: 21pt; }
+      .doppel { color: #526b67; }
+      .abschluss { display: flex; width: 72%; margin-top: auto; justify-content: space-between; gap: 25mm; font: 11pt "Segoe UI", sans-serif; }
+      .abschluss span { width: 65mm; padding-top: 2mm; border-top: .35mm solid #526b67; }
+      @media print { body { background: white; } .aktionen { display: none; } .urkunde { margin: 0; } }
+    </style></head><body><div class="aktionen"><button onclick="window.print()">Urkunden drucken</button></div>${seiten}</body></html>`);
+  fenster.document.close();
+  fenster.focus();
+};
 
 const aktualisiereAnzahl = () => { $('anzahl').textContent = `${paare.children.length} Doppelpaare · erlaubt: 5 bis 32`; };
 const paareNeuNummerieren = container => {
@@ -328,6 +392,9 @@ const render = () => {
   $('turnierBearbeiten').disabled = state.ausgewaehlt === null;
   $('turnierLoeschen').dataset.gesperrt = String(state.ausgewaehlt === null);
   $('turnierLoeschen').disabled = state.ausgewaehlt === null;
+  const aktuellesTurnier = state.turniere.find(turnier => turnier.id === state.ausgewaehlt);
+  $('siegerurkunden').dataset.gesperrt = String(!aktuellesTurnier || !turnierIstAbgeschlossen(aktuellesTurnier));
+  $('siegerurkunden').disabled = !aktuellesTurnier || !turnierIstAbgeschlossen(aktuellesTurnier);
   renderDetails();
 };
 
@@ -463,6 +530,10 @@ $('beamerAnsicht').addEventListener('click', () => {
   window.open(url, '_blank', 'noopener');
 });
 $('drucken').addEventListener('click', () => window.print());
+$('siegerurkunden').addEventListener('click', () => {
+  const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
+  if (turnier) siegerurkundenDrucken(turnier);
+});
 $('exportieren').addEventListener('click', () => {
   const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
   if (!turnier) { meldung('Bitte zuerst ein Turnier auswählen.'); return; }

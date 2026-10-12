@@ -14,6 +14,7 @@ Eigenständige Verwaltung von Tischtennis-Doppelturnieren – ohne Anmeldung und
 - optionale Tischanzahl mit Anzeige von Durchgang und Tisch
 - Beameransicht mit automatischer Aktualisierung
 - Druckansicht sowie JSON-Export und -Import zur Datensicherung
+- druckfertige Urkunden für beide Spieler der Plätze 1 bis 3
 - Turniere umbenennen und mit Sicherheitsabfrage löschen
 - Versionsprüfung gegen versehentliches Überschreiben paralleler Änderungen
 

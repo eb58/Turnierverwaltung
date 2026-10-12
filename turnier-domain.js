@@ -37,3 +37,24 @@ export const turnierTabelle = turnier => {
     return { ...zeile, rang };
   });
 };
+
+export const turnierPlatzierungen = turnier => {
+  const fortschritt = turnierFortschritt(turnier);
+  if (!fortschritt.gesamt || fortschritt.fertig !== fortschritt.gesamt) return [];
+  if (turnier.modus === 'jeder-gegen-jeden') {
+    return turnierTabelle(turnier).filter(zeile => zeile.rang <= 3).map(zeile => ({ ...zeile, platz: zeile.rang }));
+  }
+  const nachId = new Map(turnier.teilnehmer.map(teilnehmer => [teilnehmer.id, teilnehmer]));
+  const finale = turnier.runden.at(-1)?.[0];
+  if (!finale?.sieger) return [];
+  const verlierer = spiel => spiel.sieger === spiel.a ? spiel.b : spiel.a;
+  const platzierungen = [
+    { ...nachId.get(finale.sieger), platz: 1 },
+    { ...nachId.get(verlierer(finale)), platz: 2 },
+  ];
+  for (const halbfinale of turnier.runden.at(-2) ?? []) {
+    const paar = nachId.get(verlierer(halbfinale));
+    if (paar) platzierungen.push({ ...paar, platz: 3 });
+  }
+  return platzierungen;
+};

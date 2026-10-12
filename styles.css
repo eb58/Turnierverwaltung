@@ -47,10 +47,12 @@ dialog strong { color: var(--accent-dark); }
 .dialog-aktionen { display: flex; justify-content: flex-end; gap: .65rem; }
 .breiter-dialog { width: min(820px, calc(100% - 2rem)); max-height: calc(100% - 2rem); }
 .breiter-dialog form { max-height: calc(100vh - 2rem); overflow: auto; }
-.turnier-dialog { width: min(1100px, calc(100% - 2rem)); max-height: calc(100% - 2rem); }
-.turnier-dialog form { max-height: calc(100vh - 2rem); overflow: auto; }
+.turnier-dialog { width: min(1100px, calc(100% - 2rem)); max-height: calc(100% - 2rem); overflow: hidden; }
+.turnier-dialog form { max-height: calc(100vh - 2rem); overflow-y: auto; overscroll-behavior: contain; }
 .turnier-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .turnier-form label { display: grid; gap: .35rem; font-weight: 650; }
+.turnier-form > .wide.toolbar:last-child { position: sticky; z-index: 2; bottom: -1.25rem; margin: 0 -1.25rem -1.25rem; padding: .85rem 1.25rem; background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -8px 18px rgba(15, 23, 42, .08); }
+.turnier-form > .wide.toolbar:last-child #anzahl { margin-right: auto; }
 .wide { grid-column: 1 / -1; min-width: 0; }
 .paare { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: .8rem; }
 .paar { padding: .8rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
