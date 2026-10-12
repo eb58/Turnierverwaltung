@@ -159,20 +159,30 @@ const paarFeldHinzufuegen = (container, spieler = [{ name: '' }, { name: '' }]) 
   const nummer = container.children.length + 1;
   const feld = el('fieldset', undefined, 'paar'); feld.dataset.id = nummer;
   feld.append(el('legend', `Paar ${nummer}`));
+  const namen = el('div', undefined, 'paar-namen');
   spieler.forEach((person, index) => {
     const box = el('div', undefined, 'person');
     const input = el('input'); input.value = person.name; input.required = true; input.maxLength = 100;
     input.placeholder = `Name Spieler ${index + 1}`;
     input.setAttribute('aria-label', `Paar ${nummer}, Spieler ${index + 1}`);
-    box.append(input); feld.append(box);
+    box.append(input); namen.append(box);
   });
   const loeschen = el('button', '🗑', 'paar-loeschen small danger'); loeschen.type = 'button';
   loeschen.setAttribute('aria-label', `Paar ${nummer} löschen`); loeschen.title = 'Paar löschen';
-  loeschen.addEventListener('click', () => {
+  loeschen.addEventListener('click', async () => {
     if (container.children.length <= 5) return;
+    const namen = [...feld.querySelectorAll('input')].map(input => input.value.trim()).filter(Boolean);
+    const bezeichnung = namen.length ? namen.join(' / ') : `Paar ${feld.dataset.id}`;
+    if (!await dialogOeffnen({
+      titel: 'Doppelpaar entfernen?',
+      text: 'Dieses Doppelpaar wirklich aus dem Turnier entfernen? ',
+      hervorhebung: bezeichnung,
+      bestaetigung: 'Doppelpaar entfernen',
+      gefahr: true,
+    })) return;
     feld.remove(); paareNeuNummerieren(container);
   });
-  feld.append(loeschen);
+  feld.append(namen, loeschen);
   container.append(feld); paareNeuNummerieren(container); return feld;
 };
 const addPaar = () => {

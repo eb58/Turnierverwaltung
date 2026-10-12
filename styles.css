@@ -55,10 +55,12 @@ dialog strong { color: var(--accent-dark); }
 .turnier-form > .wide.toolbar:last-child #anzahl { margin-right: auto; }
 .wide { grid-column: 1 / -1; min-width: 0; }
 .paare { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: .8rem; }
-.paar { padding: .8rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
+.paar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .45rem .6rem; padding: .65rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
 .paar legend { color: var(--accent-dark); font-weight: 750; }
-.paar-loeschen { display: block; min-width: 34px; padding-inline: .45rem; margin-left: auto; filter: grayscale(1); }
-.person { margin-bottom: .55rem; }
+.paar-namen { display: grid; grid-column: 1; gap: .45rem; min-width: 0; }
+.paar input { min-height: 38px; padding: .4rem .6rem; }
+.paar-loeschen { grid-column: 2; min-width: 34px; padding-inline: .45rem; align-self: center; filter: grayscale(1); }
+.person { min-width: 0; }
 .actions { margin-top: .8rem; }
 .tisch-form, .einstellungs-form { margin-bottom: 1rem; }
 .tisch-form label { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; }
