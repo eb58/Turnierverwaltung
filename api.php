@@ -374,10 +374,13 @@ try {
         }, true));
     }
     if ($method === 'GET' && $action === '') {
+        $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($id === false) throw new ApiError('Ungültige Turniernummer.');
         $leitung = leitungInfo();
-        respond(withStore(function (array &$turniere) use ($leitung): array {
+        respond(withStore(function (array &$turniere) use ($leitung, $id): array {
             if ($leitung['angemeldet']) ungespielteKoTurniereUmstellen($turniere);
-            return ['turniere' => $turniere, 'leitung' => $leitung];
+            $auswahl = $id === null ? $turniere : [$turniere[turnierIndex($turniere, $id)]];
+            return ['turniere' => $auswahl, 'leitung' => $leitung];
         }, $leitung['angemeldet']));
     }
     if ($method === 'POST' && $action === 'anlegen') {

@@ -112,7 +112,7 @@ function schachAuslosen(array $turnier, array $payload): array
             $loesung = [$knoten, $matching, $zentrum]; break 2;
         }
     }
-    if ($loesung === null) throw new ApiError('Mit den offenen Turnierpartien ist keine vollständige Einteilung möglich. Freie Partien können ergänzt werden, damit alle spielen.');
+    if ($loesung === null) throw new ApiError('Für diese Anwesenheitsauswahl sind keine vollständigen Turnierpaarungen mehr möglich.');
     [$knoten, $matching, $zentrum] = $loesung;
     $gruppen = []; $dreier = null;
     foreach ($matching as $i => $j) {

@@ -1,6 +1,6 @@
 import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=6';
 import { istSchach, schachErgebnisText, schachPunkte, schachKreuztabelle } from './schach-domain.js?v=5';
-import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=4';
+import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=5';
 
 const $ = id => document.getElementById(id);
 const el = (tag, text, className = '') => {
@@ -11,6 +11,31 @@ const el = (tag, text, className = '') => {
 };
 
 const parameter = new URLSearchParams(location.search);
+const einzelAnsicht = parameter.get('einzeln') === '1';
+const festesTurnierId = Number(parameter.get('turnier'));
+document.body.classList.toggle('einzelansicht', einzelAnsicht);
+const NAVIGATION_KLEIN_KEY = 'turnierverwaltung:navigation-klein';
+const navigationVerkleinern = (klein, merken = true) => {
+  document.body.classList.toggle('navigation-klein', klein);
+  const text = klein ? 'Navigation vergrößern' : 'Navigation verkleinern';
+  $('navigationUmschalten').setAttribute('aria-expanded', String(!klein));
+  $('navigationUmschalten').setAttribute('aria-label', text);
+  $('navigationUmschalten').title = text;
+  if (merken) try { localStorage.setItem(NAVIGATION_KLEIN_KEY, klein ? '1' : '0'); } catch {}
+};
+const menueOeffnen = offen => {
+  document.body.classList.toggle('menue-offen', offen);
+  $('menueUmschalten').setAttribute('aria-expanded', String(offen));
+  $('menueUmschalten').setAttribute('aria-label', offen ? 'Menü schließen' : 'Menü öffnen');
+};
+let navigationKleinGemerkt = false;
+try { navigationKleinGemerkt = localStorage.getItem(NAVIGATION_KLEIN_KEY) === '1'; } catch {}
+navigationVerkleinern(navigationKleinGemerkt, false);
+$('navigationUmschalten').addEventListener('click', () => navigationVerkleinern(!document.body.classList.contains('navigation-klein')));
+$('menueUmschalten').addEventListener('click', () => menueOeffnen(!document.body.classList.contains('menue-offen')));
+$('navigationInhalt').addEventListener('click', event => { if (event.target.closest('button')) menueOeffnen(false); });
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && document.body.classList.contains('menue-offen')) menueOeffnen(false); });
+document.addEventListener('click', event => { if (!event.target.closest('.seitenleiste')) menueOeffnen(false); });
 const state = { turniere: [], ausgewaehlt: Number(parameter.get('turnier')) || null, busy: false, beamer: parameter.has('beamer'), leitung: { eingerichtet: false, angemeldet: false, csrf: '' }, verlauf: [] };
 const darfBearbeiten = () => state.leitung.angemeldet && !state.beamer;
 const form = $('turnierForm');
@@ -67,15 +92,20 @@ const setBusy = busy => {
 
 const zugangAktualisieren = () => {
   document.body.classList.toggle('zuschauer', !darfBearbeiten());
+  for (const id of ['drucken', 'exportieren']) {
+    $(id).dataset.gesperrt = String(!darfBearbeiten());
+    $(id).disabled = state.busy || !darfBearbeiten();
+  }
   $('leitungsStatus').textContent = darfBearbeiten() ? 'Als Turnierleitung angemeldet' : 'Zuschaueransicht';
   $('leitungAnmelden').hidden = state.leitung.angemeldet;
   $('leitungAnmelden').dataset.gesperrt = String(!state.leitung.eingerichtet);
   $('leitungAnmelden').disabled = state.busy || !state.leitung.eingerichtet;
-  $('leitungAnmelden').title = state.leitung.eingerichtet ? '' : 'Die Anmeldung ist noch nicht freigeschaltet.';
+  $('leitungAnmelden').title = state.leitung.eingerichtet ? 'Turnierleitung anmelden' : 'Die Anmeldung ist noch nicht freigeschaltet.';
 };
 
 const request = async (action = '', options = {}) => {
-  const response = await fetch(`api.php${action ? `?action=${action}` : ''}`, {
+  const query = action ? `?action=${action}` : einzelAnsicht ? `?turnier=${encodeURIComponent(festesTurnierId)}` : '';
+  const response = await fetch(`api.php${query}`, {
     ...options,
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.leitung.csrf, ...options.headers },
@@ -110,6 +140,7 @@ const htmlSicher = wert => String(wert).replace(/[&<>"']/g, zeichen => ({
 })[zeichen]);
 
 const siegerurkundenDrucken = turnier => {
+  if (!darfBearbeiten()) return;
   const paare = turnierPlatzierungen(turnier);
   if (!paare.length) { meldung('Urkunden sind nach Abschluss des Turniers verfügbar.'); return; }
   const urkunden = paare.flatMap(paar => paar.spieler.map(spieler => ({
@@ -561,8 +592,9 @@ const render = () => {
   $('turnierLoeschen').dataset.gesperrt = String(state.ausgewaehlt === null);
   $('turnierLoeschen').disabled = state.ausgewaehlt === null;
   const aktuellesTurnier = state.turniere.find(turnier => turnier.id === state.ausgewaehlt);
-  $('siegerurkunden').dataset.gesperrt = String(!aktuellesTurnier || !turnierIstAbgeschlossen(aktuellesTurnier));
-  $('siegerurkunden').disabled = !aktuellesTurnier || !turnierIstAbgeschlossen(aktuellesTurnier);
+  const urkundenGesperrt = !darfBearbeiten() || !aktuellesTurnier || !turnierIstAbgeschlossen(aktuellesTurnier);
+  $('siegerurkunden').dataset.gesperrt = String(urkundenGesperrt);
+  $('siegerurkunden').disabled = urkundenGesperrt;
   renderDetails();
 };
 
@@ -715,12 +747,13 @@ $('beamerAnsicht').addEventListener('click', () => {
   if (state.ausgewaehlt !== null) url.searchParams.set('turnier', state.ausgewaehlt);
   window.open(url, '_blank', 'noopener');
 });
-$('drucken').addEventListener('click', () => window.print());
+$('drucken').addEventListener('click', () => { if (darfBearbeiten()) window.print(); });
 $('siegerurkunden').addEventListener('click', () => {
   const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
   if (turnier) siegerurkundenDrucken(turnier);
 });
 $('exportieren').addEventListener('click', () => {
+  if (!darfBearbeiten()) return;
   const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
   if (!turnier) { meldung('Bitte zuerst ein Turnier auswählen.'); return; }
   const inhalt = JSON.stringify({ format: 'turnierverwaltung-backup', version: 1, turnier }, null, 2);

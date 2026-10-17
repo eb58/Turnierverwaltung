@@ -74,10 +74,6 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
       input.checked = aktiv && letzter.anwesend.includes(person.id); input.disabled = begonnen; input.dataset.gesperrt = String(begonnen);
       label.append(input, el('span', person.name)); auswahl.append(label); checkboxen.push(input);
     }
-    const freiLabel = el('label', undefined, 'checkbox-label'), frei = el('input');
-    frei.type = 'checkbox'; frei.name = 'freiePartien'; frei.checked = aktiv ? letzter.freiePartien : true;
-    frei.disabled = begonnen; frei.dataset.gesperrt = String(begonnen);
-    freiLabel.append(frei, document.createTextNode('Bei Bedarf freie Partien ergänzen (ohne Turnierwertung)'));
     const anzahl = el('p', undefined, 'hint'), toolbar = el('div', undefined, 'toolbar');
     const alle = el('button', 'Alle auswählen', 'secondary small'), keine = el('button', 'Auswahl aufheben', 'secondary small');
     const los = el('button', aktiv ? 'Neu auslosen' : 'Paarungen auslosen'); los.type = 'submit';
@@ -91,7 +87,7 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
     alle.addEventListener('click', () => { checkboxen.forEach(input => input.checked = true); zaehlen(); });
     keine.addEventListener('click', () => { checkboxen.forEach(input => input.checked = false); zaehlen(); });
     toolbar.append(alle, keine, los);
-    form.append(datumLabel, auswahl, anzahl, freiLabel, el('p', 'Normale Paare spielen die noch offenen Partien gegeneinander. In der Dreiergruppe spielt die zuerst genannte Person nacheinander je eine Partie gegen die beiden anderen.', 'hint'), toolbar);
+    form.append(datumLabel, auswahl, anzahl, el('p', 'Normale Paare spielen die noch offenen Partien gegeneinander. In der Dreiergruppe spielt die zuerst genannte Person nacheinander je eine Partie gegen die beiden anderen.', 'hint'), toolbar);
     if (begonnen) form.append(el('p', 'Ergebnisse wurden bereits erfasst. Für eine neue Auslosung zuerst diesen Spieltag beenden.', 'hint'));
     zaehlen();
     form.addEventListener('submit', async event => {
@@ -100,7 +96,7 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
       if (aktiv && !await bestaetigen({ titel: 'Neu auslosen?', text: 'Die bisherige Einteilung dieses Spieltags wird ersetzt.', bestaetigung: 'Neu auslosen' })) return;
       setBusy(true);
       try {
-        const result = await request(`auslosen&turnier=${turnier.id}`, { method: 'POST', body: JSON.stringify({ version: turnier.version, datum: datum.value, anwesend: checkboxen.filter(input => input.checked).map(input => Number(input.value)), freiePartien: frei.checked }) });
+        const result = await request(`auslosen&turnier=${turnier.id}`, { method: 'POST', body: JSON.stringify({ version: turnier.version, datum: datum.value, anwesend: checkboxen.filter(input => input.checked).map(input => Number(input.value)), freiePartien: false }) });
         aktualisieren(result.turnier); meldung('Anwesende Spieler ausgelost.', 'erfolg');
       } catch (error) { meldung(error.message); }
       finally { setBusy(false); }

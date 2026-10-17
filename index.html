@@ -6,38 +6,70 @@
   <meta name="theme-color" content="#0f766e">
   <title>Turnierverwaltung</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230f766e'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='white'%3E%E2%86%94%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css?v=20">
+  <link rel="stylesheet" href="styles.css?v=24">
 </head>
 <body class="zuschauer">
-  <main class="app">
-    <header class="header">
-      <div class="brand">
-        <img class="logo" src="reinickendorf-wappen.svg" alt="Bezirkssymbol Reinickendorf">
-        <div>
+  <div class="app-layout">
+    <aside class="seitenleiste" aria-label="Turniernavigation">
+      <div class="seitenleiste-kopf">
+        <img class="seitenleiste-logo" src="reinickendorf-wappen.svg" alt="">
+        <div class="seitenleiste-titel">
           <h1>Turnierverwaltung</h1>
+          <span>Reinickendorf</span>
+        </div>
+        <button id="menueUmschalten" class="menue-umschalten management-only" type="button" aria-label="Menü öffnen" aria-expanded="false" aria-controls="navigationInhalt">
+          <span class="menue-striche" aria-hidden="true"></span>
+        </button>
+      </div>
+      <button id="navigationUmschalten" class="navigation-umschalten management-only" type="button" aria-label="Navigation verkleinern" aria-expanded="true" aria-controls="navigationInhalt" title="Navigation verkleinern">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6.7v10.6c0 1.2-1.3 1.9-2.3 1.2l-7-5.3c-.8-.6-.8-1.8 0-2.4l7-5.3c1-.7 2.3 0 2.3 1.2Z"></path></svg>
+      </button>
+      <svg class="nav-symbole" aria-hidden="true">
+        <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+        <symbol id="icon-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zm9-13 4 4"></path></symbol>
+        <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3"></path></symbol>
+        <symbol id="icon-beamer" viewBox="0 0 24 24"><path d="M3 5h18v11H3V5zm9 11v4m-4 0h8"></path></symbol>
+        <symbol id="icon-print" viewBox="0 0 24 24"><path d="M7 9V3h10v6M7 17H4v-8h16v8h-3M7 14h10v7H7v-7z"></path></symbol>
+        <symbol id="icon-award" viewBox="0 0 24 24"><path d="M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zm-3.5-1L7 21l5-3 5 3-1.5-7"></path></symbol>
+        <symbol id="icon-export" viewBox="0 0 24 24"><path d="M12 15V3m0 0L8 7m4-4 4 4M5 17v3h14v-3"></path></symbol>
+        <symbol id="icon-import" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3"></path></symbol>
+        <symbol id="icon-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5m4-1v5l3 2"></path></symbol>
+        <symbol id="icon-login" viewBox="0 0 24 24"><path d="M14 4h5v16h-5M10 8l4 4-4 4m4-4H3"></path></symbol>
+        <symbol id="icon-key" viewBox="0 0 24 24"><path d="M14 10a4 4 0 1 0-3.9 4.9L8 17v3h3v-2h2l1.1-3.1A4 4 0 0 0 14 10zm1-2h.01"></path></symbol>
+        <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M10 4H5v16h5M14 8l4 4-4 4m4-4H8"></path></symbol>
+      </svg>
+      <div id="navigationInhalt" class="navigation-inhalt">
+        <nav class="nav" aria-label="Turnierfunktionen">
+          <div class="nav-gruppe">
+            <label class="nav-gruppentitel" for="turnierAuswahl">Turnier</label>
+            <select id="turnierAuswahl" aria-label="Turnier auswählen"></select>
+            <button id="neuesTurnier" class="management-only leitung-only" type="button" title="Neues Turnier anlegen"><svg class="nav-icon" aria-hidden="true"><use href="#icon-plus"></use></svg><span class="nav-label">Neues Turnier anlegen</span></button>
+            <button id="turnierBearbeiten" class="management-only leitung-only" type="button" title="Turnier ändern"><svg class="nav-icon" aria-hidden="true"><use href="#icon-edit"></use></svg><span class="nav-label">Turnier ändern</span></button>
+            <button id="turnierLoeschen" class="nav-gefahr management-only leitung-only" type="button" title="Turnier löschen"><svg class="nav-icon" aria-hidden="true"><use href="#icon-trash"></use></svg><span class="nav-label">Turnier löschen</span></button>
+          </div>
+          <div class="nav-gruppe">
+            <p class="nav-gruppentitel">Ansicht &amp; Ausgabe</p>
+            <button id="beamerAnsicht" class="management-only" type="button" title="Beameransicht"><svg class="nav-icon" aria-hidden="true"><use href="#icon-beamer"></use></svg><span class="nav-label">Beameransicht</span></button>
+            <button id="drucken" class="management-only leitung-only" type="button" title="Drucken"><svg class="nav-icon" aria-hidden="true"><use href="#icon-print"></use></svg><span class="nav-label">Drucken</span></button>
+            <button id="siegerurkunden" class="management-only leitung-only" type="button" title="Urkunden (Platz 1–3)"><svg class="nav-icon" aria-hidden="true"><use href="#icon-award"></use></svg><span class="nav-label">Urkunden (Platz 1–3)</span></button>
+          </div>
+          <div class="nav-gruppe leitung-only">
+            <p class="nav-gruppentitel">Daten &amp; Sicherungen</p>
+            <button id="exportieren" class="management-only leitung-only" type="button" title="Exportieren"><svg class="nav-icon" aria-hidden="true"><use href="#icon-export"></use></svg><span class="nav-label">Exportieren</span></button>
+            <button id="importieren" class="management-only leitung-only" type="button" title="Importieren"><svg class="nav-icon" aria-hidden="true"><use href="#icon-import"></use></svg><span class="nav-label">Importieren</span></button>
+            <button id="verlaufOeffnen" class="management-only leitung-only" type="button" title="Sicherungen &amp; Verlauf"><svg class="nav-icon" aria-hidden="true"><use href="#icon-history"></use></svg><span class="nav-label">Sicherungen &amp; Verlauf</span></button>
+            <input id="importDatei" type="file" accept="application/json,.json" hidden>
+          </div>
+        </nav>
+        <div class="nav management-only zugang">
+          <span id="leitungsStatus" class="nav-status" role="status">Zuschaueransicht</span>
+          <button id="leitungAnmelden" type="button"><svg class="nav-icon" aria-hidden="true"><use href="#icon-login"></use></svg><span class="nav-label">Turnierleitung anmelden</span></button>
+          <button id="pinAendern" class="leitung-only" type="button" title="PIN ändern"><svg class="nav-icon" aria-hidden="true"><use href="#icon-key"></use></svg><span class="nav-label">PIN ändern</span></button>
+          <button id="leitungAbmelden" class="leitung-only" type="button" title="Abmelden"><svg class="nav-icon" aria-hidden="true"><use href="#icon-logout"></use></svg><span class="nav-label">Abmelden</span></button>
         </div>
       </div>
-      <div class="toolbar">
-        <label for="turnierAuswahl">Turnier</label>
-        <select id="turnierAuswahl" aria-label="Turnier auswählen"></select>
-        <button id="turnierBearbeiten" class="secondary management-only leitung-only" type="button">Turnier ändern</button>
-        <button id="turnierLoeschen" class="danger management-only leitung-only" type="button">Turnier löschen</button>
-        <button id="beamerAnsicht" class="secondary management-only" type="button">Beameransicht</button>
-        <button id="drucken" class="secondary management-only" type="button">Drucken</button>
-        <button id="siegerurkunden" class="secondary management-only" type="button">Urkunden (Platz 1–3)</button>
-        <button id="exportieren" class="secondary management-only" type="button">Exportieren</button>
-        <button id="importieren" class="secondary management-only leitung-only" type="button">Importieren</button>
-        <button id="verlaufOeffnen" class="secondary management-only leitung-only" type="button">Sicherungen &amp; Verlauf</button>
-        <button id="neuesTurnier" class="management-only leitung-only neues-turnier" type="button">Neues Turnier anlegen</button>
-        <input id="importDatei" type="file" accept="application/json,.json" hidden>
-      </div>
-      <div class="toolbar management-only zugang">
-        <span id="leitungsStatus" class="muted" role="status">Zuschaueransicht</span>
-        <button id="leitungAnmelden" class="secondary" type="button">Turnierleitung anmelden</button>
-        <button id="pinAendern" class="secondary leitung-only" type="button">PIN ändern</button>
-        <button id="leitungAbmelden" class="secondary leitung-only" type="button">Abmelden</button>
-      </div>
-    </header>
+    </aside>
+  <main class="app">
 
     <div id="meldung" class="meldung" role="alert" hidden></div>
 
@@ -129,6 +161,7 @@
 
     <section id="details" class="panel" aria-label="Spielplan und Ergebnisse"></section>
   </main>
+  </div>
 
   <dialog id="appDialog" aria-labelledby="dialogTitel">
     <form id="dialogForm">
@@ -145,6 +178,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=46"></script>
+  <script type="module" src="app.js?v=53"></script>
 </body>
 </html>

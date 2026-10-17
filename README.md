@@ -24,7 +24,7 @@ Eigenständige Verwaltung von Tischtennis-Doppelturnieren und Schachturnieren mi
 - optionale Tisch- bzw. Brettanzahl mit Anzeige von Spielblock und Tisch/Brett
 - Beameransicht mit automatischer Aktualisierung
 - Druckansicht sowie JSON-Export und -Import zur Datensicherung
-- druckfertige Urkunden für die Plätze 1 bis 3, beim Doppel für beide Spieler
+- druckfertige Urkunden für die Plätze 1 bis 3, beim Doppel für beide Spieler; nur für angemeldete Turnierleitungen
 - Turniere umbenennen und mit Sicherheitsabfrage löschen
 - Versionsprüfung gegen versehentliches Überschreiben paralleler Änderungen
 
@@ -54,9 +54,13 @@ php -S localhost:8001 router.php
 
 Danach <http://localhost:8001> öffnen.
 
-Die Seite startet in der Zuschaueransicht. Über **Turnierleitung anmelden** werden Bearbeitung und **Sicherungen & Verlauf** freigeschaltet. Beameransichten bleiben schreibgeschützt. Die Anmeldung läuft nach acht Stunden ohne Aktivität ab; eine PIN-Änderung macht andere Sitzungen ungültig.
+Die Seite startet in der Zuschaueransicht. Über **Turnierleitung anmelden** werden Bearbeitung, **Drucken**, **Urkunden**, **Exportieren** und **Sicherungen & Verlauf** freigeschaltet. Beameransichten bleiben schreibgeschützt. Die Anmeldung läuft nach acht Stunden ohne Aktivität ab; eine PIN-Änderung macht andere Sitzungen ungültig.
+
+Die Funktionen stehen in der linken Seitenleiste. Am Desktop lässt sie sich über die runde Taste am Rand zu einer schmalen Symbolleiste verkleinern; der Zustand wird im Browser gemerkt. Auf schmalen Bildschirmen wird sie zur Kopfleiste, deren Menütaste die Funktionen als Aufklappmenü zeigt. Beim Drucken und in der Beameransicht ist sie ausgeblendet.
 
 ## Datenhaltung
+
+Mit `?turnier=4&einzeln=1` öffnet sich ausschließlich das gewählte Turnier. Turnierauswahl, Neuanlage, Import und turnierübergreifender Sicherungsverlauf sind in dieser Ansicht ausgeblendet; der Leseaufruf lädt nur dieses Turnier. Anmeldung, Tagesauslosung, Ergebniserfassung, Export und Beameransicht bleiben verfügbar. Der Parameter lässt sich auch mit `&beamer=1` kombinieren. Ohne `einzeln=1` steht die normale Turnierauswahl zur Verfügung.
 
 Alle Turniere und das Verzeichnis der Änderungen werden in `data/turniere.json` gespeichert. Ältere Dateien mit einer reinen Turnierliste werden beim nächsten Speichern automatisch übernommen. Der Webserver benötigt Schreibrechte auf `data/`.
 
@@ -76,7 +80,7 @@ Diese Zahlen gelten bei einer Partie pro Paarung. Bei Hin- und Rückspiel verdop
 
 Als Turnierleitung im Schachturnier die anwesenden Spieler über Namenschips markieren und **Paarungen auslosen** wählen. Anschließend die Ergebnisse direkt bei den ausgelosten Paarungen erfassen und den Spieltag beenden. Normale Paare erhalten ihre noch offenen Partien gegeneinander. In einer Dreiergruppe spielt die zuerst genannte Person nacheinander je eine Partie gegen die beiden anderen. Nicht anwesende Spieler werden nicht eingeteilt.
 
-Es wird zuerst nach einer vollständigen Einteilung ausschließlich mit offenen Turnierpartien gesucht. Ist diese nicht möglich, können über die sichtbar auswählbare Option **freie Partien** ergänzt werden, damit alle Anwesenden spielen. Diese Partien sind ausdrücklich als ungewertet gekennzeichnet und verändern die Turniertabelle nicht. Die Auswahl kann ausgeschaltet werden; dann wird stattdessen erklärt, dass keine vollständige Einteilung möglich ist.
+Die Auslosung verwendet ausschließlich offene Turnierpartien. Ist für die ausgewählten Anwesenden keine vollständige Einteilung möglich, wird dies angezeigt.
 
 Vor dem ersten erfassten Tagesergebnis kann neu ausgelost werden. Danach zuerst **Spieltag beenden** wählen. Offene Partien bleiben für weitere Spieltage verfügbar. Anwesenheit, Einteilung und Abschluss werden gespeichert, automatisch gesichert und beim JSON-Export/-Import erhalten. Abgeschlossene Spieltage erscheinen unter **Bisherige Spieltage**. Die Schachansicht und die Beameransicht zeigen ausschließlich tatsächliche Tagespaarungen; die interne Rundeneinteilung wird nicht angezeigt. Tischtennisturniere behalten ihre Rundenansicht.
 

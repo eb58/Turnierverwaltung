@@ -328,6 +328,24 @@ test('Alte Turnierlisten werden verlustfrei übernommen und beschädigte Daten n
   } finally { await writeFile(datei, vorher); }
 });
 
+test('Einzelansicht lädt nur das gewählte Turnier und fällt bei ungültigen Links nicht auf alle zurück', async () => {
+  const alle = (await anfrage()).payload.turniere;
+  assert.ok(alle.length >= 2);
+  const id = alle[1].id;
+  for (const sitzung of [leitung, gast]) {
+    const response = await fetch(`${basisUrl}/api.php?turnier=${id}`, { headers: { Cookie: sitzung.cookie } });
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.deepEqual(payload.turniere.map(t => t.id), [id]);
+  }
+  for (const [wert, status] of [['0', 400], ['abc', 400], ['99999999', 404]]) {
+    const response = await fetch(`${basisUrl}/api.php?turnier=${wert}`);
+    assert.equal(response.status, status);
+    assert.equal((await response.json()).turniere, undefined);
+  }
+  assert.equal((await anfrage()).payload.turniere.length, alle.length);
+});
+
 test('API speichert Anwesenheit, Dreiergruppe und Spieltagsabschluss versionssicher mit Sicherungen', async () => {
   const teilnehmer = Array.from({ length: 11 }, (_, index) => ({ spieler: [{ name: `Anwesend ${index + 1}` }] }));
   let turnier = (await anfrage('anlegen', 'POST', { titel: 'Auslosungstest', sportart: 'schach', modus: 'jeder-gegen-jeden', durchgaenge: 2, teilnehmer })).payload.turnier;
