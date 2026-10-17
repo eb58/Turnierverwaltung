@@ -243,6 +243,7 @@ function importiertesTurnier(array $payload, int $id): array
     if (array_key_exists('altErgebnisse', $quelle)) $basis = schachAltErgebnisse($basis, $quelle['altErgebnisse']);
     $basis = berechnen($basis);
     if (istSchach($basis) && array_key_exists('spieltage', $quelle)) $basis['spieltage'] = schachSpieltagePruefen($basis, $quelle['spieltage']);
+    if (array_key_exists('historischeSpieltage', $quelle)) $basis['historischeSpieltage'] = schachHistorischeSpieltagePruefen($basis, $quelle['historischeSpieltage']);
     return $basis;
 }
 

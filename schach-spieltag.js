@@ -1,15 +1,65 @@
-import { schachErgebnisText } from './schach-domain.js?v=5';
+import { schachErgebnisText, schachPunkte } from './schach-domain.js?v=5';
+
+export const renderSchachHistorie = (turnier, el) => {
+  const tage = [...(turnier.historischeSpieltage ?? []), ...(turnier.spieltage ?? []).filter(tag => tag.status === 'beendet')]
+    .sort((a, b) => a.datum.localeCompare(b.datum));
+  if (!tage.length) return null;
+  const section = el('section', undefined, 'spieltag-historie');
+  section.append(el('h3', `Bisherige Spieltage (${tage.length})`));
+  const namen = new Map(turnier.teilnehmer.map(p => [p.id, p.name]));
+  const ergebnisse = new Map((turnier.altErgebnisse ?? []).map(e => [`${Math.min(e.a, e.b)}-${Math.max(e.a, e.b)}`, e]));
+  const spiele = new Map(turnier.runden.flat().map(s => [s.id, s]));
+  tage.forEach((tag, index) => {
+    const details = el('details', undefined, 'vergangener-spieltag');
+    const [jahr, monat, datum] = tag.datum.split('-');
+    const anzahl = tag.paarungen ? tag.paarungen.length * 2 : tag.gruppen.reduce((n, g) => n + g.spiele.length, 0);
+    details.append(el('summary', `${index + 1}. Spieltag · ${datum}.${monat}.${jahr} · ${anzahl} Partien · beendet`));
+    details.append(el('p', `${tag.anwesenheitVollstaendig === false ? 'Mitgespielt' : 'Anwesend'}: ${tag.anwesend.map(id => namen.get(id)).join(', ')}`, 'muted'));
+    const tabelle = el('table'), head = el('thead'), kopf = el('tr');
+    for (const titel of ['Paarung', tag.paarungen ? 'Hin- und Rückspiel gesamt' : 'Ergebnis']) {
+      const th = el('th', titel); th.scope = 'col'; kopf.append(th);
+    }
+    head.append(kopf); tabelle.append(head);
+    const body = el('tbody');
+    for (const key of tag.paarungen ?? []) {
+      const e = ergebnisse.get(key), row = el('tr');
+      row.append(el('td', `${namen.get(e.a)} – ${namen.get(e.b)}`), el('td', `${schachPunkte(e.punkteA)}:${schachPunkte(e.punkteB)}`));
+      body.append(row);
+    }
+    for (const gruppe of tag.gruppen ?? []) {
+      for (const id of gruppe.spiele) {
+        const s = spiele.get(id), row = el('tr');
+        row.append(el('td', `${namen.get(s.a)} (Weiß) – ${namen.get(s.b)} (Schwarz)`), el('td', s.status === 'fertig' ? schachErgebnisText(s) : 'offen'));
+        body.append(row);
+      }
+      for (const frei of gruppe.freiePaarungen) {
+        const row = el('tr');
+        row.append(el('td', `${namen.get(frei.a)} – ${namen.get(frei.b)}`), el('td', `${frei.anzahl} freie ${frei.anzahl === 1 ? 'Partie' : 'Partien'} · ohne Turnierwertung`));
+        body.append(row);
+      }
+    }
+    tabelle.append(body); const wrap = el('div', undefined, 'table-wrap'); wrap.append(tabelle); details.append(wrap);
+    section.append(details);
+  });
+  return section;
+};
 
 export const renderSchachSpieltag = (turnier, hilfe) => {
-  const { el, bearbeiten, busy, setBusy, request, aktualisieren, meldung, bestaetigen, ergebnisForm, paarungsText } = hilfe;
+  const { el, bearbeiten, busy, setBusy, request, aktualisieren, meldung, bestaetigen, ergebnisForm, paarungsText, anmelden } = hilfe;
   const letzter = turnier.spieltage?.at(-1), aktiv = letzter?.status === 'aktiv';
-  if (!bearbeiten && !letzter) return null;
   const section = el('section', undefined, 'spieltag');
   section.setAttribute('aria-label', 'Anwesenheit und Auslosung');
-  section.append(el('h3', aktiv ? 'Aktueller Spieltag' : 'Spieltag auslosen'));
+  section.append(el('h3', aktiv ? 'Aktueller Spieltag' : 'Neuer Spieltag'));
   const namen = new Map(turnier.teilnehmer.map(person => [person.id, person.name]));
   const spiele = new Map(turnier.runden.flat().map(spiel => [spiel.id, spiel]));
   const begonnen = aktiv && letzter.gruppen.some(gruppe => gruppe.spiele.some(id => spiele.get(id)?.status === 'fertig'));
+  if (!bearbeiten && !aktiv) {
+    section.append(el('p', 'Noch keine Paarungen ausgelost.', 'muted'));
+    if (anmelden) {
+      const button = el('button', 'Spieltag starten', 'management-only'); button.type = 'button';
+      button.addEventListener('click', anmelden); section.append(button);
+    }
+  }
   if (bearbeiten) {
     const form = el('form', undefined, 'auslosung-form management-only');
     const heute = new Date();
@@ -20,9 +70,9 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
     const auswahl = el('fieldset', undefined, 'anwesenheit'); auswahl.append(el('legend', 'Wer ist heute anwesend?'));
     const checkboxen = [];
     for (const person of turnier.teilnehmer) {
-      const label = el('label'), input = el('input'); input.type = 'checkbox'; input.name = 'anwesend'; input.value = person.id;
+      const label = el('label', undefined, 'anwesenheit-chip'), input = el('input'); input.type = 'checkbox'; input.name = 'anwesend'; input.value = person.id;
       input.checked = aktiv && letzter.anwesend.includes(person.id); input.disabled = begonnen; input.dataset.gesperrt = String(begonnen);
-      label.append(input, document.createTextNode(person.name)); auswahl.append(label); checkboxen.push(input);
+      label.append(input, el('span', person.name)); auswahl.append(label); checkboxen.push(input);
     }
     const freiLabel = el('label', undefined, 'checkbox-label'), frei = el('input');
     frei.type = 'checkbox'; frei.name = 'freiePartien'; frei.checked = aktiv ? letzter.freiePartien : true;
@@ -30,7 +80,7 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
     freiLabel.append(frei, document.createTextNode('Bei Bedarf freie Partien ergänzen (ohne Turnierwertung)'));
     const anzahl = el('p', undefined, 'hint'), toolbar = el('div', undefined, 'toolbar');
     const alle = el('button', 'Alle auswählen', 'secondary small'), keine = el('button', 'Auswahl aufheben', 'secondary small');
-    const los = el('button', aktiv ? 'Neu auslosen' : 'Anwesende auslosen'); los.type = 'submit';
+    const los = el('button', aktiv ? 'Neu auslosen' : 'Paarungen auslosen'); los.type = 'submit';
     for (const button of [alle, keine]) { button.type = 'button'; button.dataset.gesperrt = String(begonnen); button.disabled = begonnen; }
     const zaehlen = () => {
       const n = checkboxen.filter(input => input.checked).length;
@@ -57,7 +107,7 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
     });
     section.append(form);
   }
-  if (letzter) {
+  if (aktiv) {
     const [jahr, monat, tag] = letzter.datum.split('-');
     section.append(el('h4', `${tag}.${monat}.${jahr}${aktiv ? '' : ' · beendet'}`));
     const anwesend = new Set(letzter.anwesend);

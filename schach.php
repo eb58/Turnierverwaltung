@@ -73,3 +73,47 @@ function schachAltErgebnisse(array $turnier, mixed $ergebnisse): array
     $turnier['altErgebnisse'] = $sauber;
     return berechnen($turnier);
 }
+
+// Rekonstruierte Tage verweisen auf vorhandene Summenergebnisse. Sie sind keine neuen Auslosungen.
+function schachHistorischeSpieltagePruefen(array $turnier, mixed $tage): array
+{
+    $fehler = fn() => throw new ApiError('Die historischen Spieltage passen nicht zum Turnier.');
+    if (!istSchach($turnier) || !is_array($tage) || !array_is_list($tage) || count($tage) > 1000) $fehler();
+    $ids = array_column($turnier['teilnehmer'], 'id'); $alte = [];
+    foreach ($turnier['altErgebnisse'] ?? [] as $e) $alte[schachPaarSchluessel($e['a'], $e['b'])] = $e;
+    $daten = []; $paarungen = []; $result = [];
+    foreach ($tage as $tag) {
+        if (!is_array($tag)) $fehler();
+        $datum = $tag['datum'] ?? null;
+        $date = is_string($datum) ? DateTimeImmutable::createFromFormat('!Y-m-d', $datum) : false;
+        if (!$date || $date->format('Y-m-d') !== $datum || isset($daten[$datum]) || !is_bool($tag['anwesenheitVollstaendig'] ?? null)) $fehler();
+        $daten[$datum] = true;
+        $anwesend = $tag['anwesend'] ?? null; $gesehen = [];
+        if (!is_array($anwesend) || !array_is_list($anwesend) || count($anwesend) < 2 || count($anwesend) > count($ids)) $fehler();
+        foreach ($anwesend as $id) {
+            if (!in_array($id, $ids, true) || isset($gesehen[$id])) $fehler();
+            $gesehen[$id] = true;
+        }
+        $paare = $tag['paarungen'] ?? null;
+        if (!is_array($paare) || !array_is_list($paare) || !$paare || count($paare) > count($alte)) $fehler();
+        foreach ($paare as $key) {
+            if (!is_string($key) || !isset($alte[$key]) || isset($paarungen[$key])) $fehler();
+            $e = $alte[$key];
+            if (!isset($gesehen[$e['a']], $gesehen[$e['b']])) $fehler();
+            $paarungen[$key] = true;
+        }
+        $quellen = $tag['quellen'] ?? null; $sauber = [];
+        if (!is_array($quellen) || !array_is_list($quellen) || !$quellen || count($quellen) > 10) $fehler();
+        foreach ($quellen as $quelle) {
+            if (!is_array($quelle)) $fehler();
+            $url = $quelle['url'] ?? null;
+            if (!is_string($url) || strlen($url) > 500 || !filter_var($url, FILTER_VALIDATE_URL) || parse_url($url, PHP_URL_SCHEME) !== 'https') $fehler();
+            $sauber[] = ['titel' => text($quelle['titel'] ?? null, 100, 'den Quellentitel'), 'url' => $url];
+        }
+        $result[] = ['datum' => $datum, 'paarungen' => $paare, 'anwesend' => $anwesend,
+            'anwesenheitVollstaendig' => $tag['anwesenheitVollstaendig'],
+            'hinweis' => text($tag['hinweis'] ?? null, 1000, 'den Rekonstruktionshinweis'), 'quellen' => $sauber];
+    }
+    usort($result, fn($a, $b) => strcmp($a['datum'], $b['datum']));
+    return $result;
+}

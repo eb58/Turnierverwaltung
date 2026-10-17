@@ -74,15 +74,17 @@ Diese Zahlen gelten bei einer Partie pro Paarung. Bei Hin- und Rückspiel verdop
 
 ## Anwesenheit und Tagesauslosung
 
-Als Turnierleitung im Schachturnier die Anwesenden markieren und **Anwesende auslosen** wählen. Normale Paare erhalten ihre noch offenen Partien gegeneinander. In einer Dreiergruppe spielt die zuerst genannte Person nacheinander je eine Partie gegen die beiden anderen. Nicht anwesende Spieler werden nicht eingeteilt. Die gewerteten Partien bleiben Bestandteil des vorhandenen Turnierplans.
+Als Turnierleitung im Schachturnier die anwesenden Spieler über Namenschips markieren und **Paarungen auslosen** wählen. Anschließend die Ergebnisse direkt bei den ausgelosten Paarungen erfassen und den Spieltag beenden. Normale Paare erhalten ihre noch offenen Partien gegeneinander. In einer Dreiergruppe spielt die zuerst genannte Person nacheinander je eine Partie gegen die beiden anderen. Nicht anwesende Spieler werden nicht eingeteilt.
 
 Es wird zuerst nach einer vollständigen Einteilung ausschließlich mit offenen Turnierpartien gesucht. Ist diese nicht möglich, können über die sichtbar auswählbare Option **freie Partien** ergänzt werden, damit alle Anwesenden spielen. Diese Partien sind ausdrücklich als ungewertet gekennzeichnet und verändern die Turniertabelle nicht. Die Auswahl kann ausgeschaltet werden; dann wird stattdessen erklärt, dass keine vollständige Einteilung möglich ist.
 
-Vor dem ersten erfassten Tagesergebnis kann neu ausgelost werden. Danach zuerst **Spieltag beenden** wählen. Offene Partien bleiben für weitere Spieltage verfügbar. Anwesenheit, Einteilung und Abschluss werden gespeichert, automatisch gesichert und beim JSON-Export/-Import erhalten. Der vollständige Turnierplan bleibt unterhalb der Tagesauslosung einklappbar zugänglich.
+Vor dem ersten erfassten Tagesergebnis kann neu ausgelost werden. Danach zuerst **Spieltag beenden** wählen. Offene Partien bleiben für weitere Spieltage verfügbar. Anwesenheit, Einteilung und Abschluss werden gespeichert, automatisch gesichert und beim JSON-Export/-Import erhalten. Abgeschlossene Spieltage erscheinen unter **Bisherige Spieltage**. Die Schachansicht und die Beameransicht zeigen ausschließlich tatsächliche Tagespaarungen; die interne Rundeneinteilung wird nicht angezeigt. Tischtennisturniere behalten ihre Rundenansicht.
 
 ## Prüfen
 
 ### Vorhandene Saison 2026/27 anlegen
+
+Die rekonstruierten Spieltage vom 02., 09. und 16.10.2026 werden unter **Bisherige Spieltage** mit Paarungen und Ergebnissen angezeigt. Quellen und Rekonstruktionshinweise bleiben zur Nachvollziehbarkeit in den gespeicherten Daten. Bei einem bereits angelegten Turnier ergänzt `php scripts/schach-2026-27-anlegen.php --spieltage-ergaenzen` diese Historie mit automatischer Sicherung, ohne die Ergebnisse oder spätere Auslosungen zu verändern. Export und Wiederimport erhalten sie. Unbelegte Anwesenheit und nicht dokumentierte Partien werden nicht ergänzt.
 
 `php scripts/schach-2026-27-anlegen.php` legt die elf Spieler und zwölf belegten Paarergebnisse aus Rolfs Tabellen (Stand 16.10.2026) lokal an. Ein erneuter Aufruf lässt ein bereits vorhandenes gleichnamiges Schachturnier unverändert. Der Import verwendet die reguläre Validierung und automatische Sicherung.
 

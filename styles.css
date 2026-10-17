@@ -94,9 +94,19 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
 .spieltag { margin: 1.2rem 0; padding: 1rem; border: 2px solid var(--accent); border-radius: 12px; }
 .auslosung-form { display: grid; gap: .8rem; margin-bottom: 1rem; }
 .auslosung-form > label:not(.checkbox-label) { display: grid; gap: .35rem; max-width: 260px; }
-.anwesenheit { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .5rem; border: 1px solid var(--border); border-radius: 8px; }
-.anwesenheit label, .checkbox-label { display: flex; gap: .55rem; align-items: center; }
-.anwesenheit input, .checkbox-label input { width: 22px; height: 22px; min-height: 22px; flex: 0 0 22px; }
+.anwesenheit { display: flex; flex-wrap: wrap; gap: .6rem; padding: .8rem; border: 1px solid var(--border); border-radius: 8px; }
+.anwesenheit legend { padding: 0 .3rem; font-weight: 650; }
+.anwesenheit-chip { position: relative; cursor: pointer; }
+.anwesenheit-chip input { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; opacity: 0; }
+.anwesenheit-chip span { display: flex; align-items: center; gap: .5rem; min-height: 44px; padding: .5rem 1rem; border: 2px solid var(--border); border-radius: 999px; background: white; font-weight: 650; }
+.anwesenheit-chip span::before { content: '+'; }
+.anwesenheit-chip input:checked + span { background: var(--accent); color: white; border-color: var(--accent); }
+.anwesenheit-chip input:checked + span::before { content: '✓'; }
+.anwesenheit-chip input:focus-visible + span { outline: 3px solid var(--accent-dark); outline-offset: 3px; }
+.anwesenheit-chip input:disabled + span { opacity: .65; cursor: default; }
+.checkbox-label { display: flex; gap: .55rem; align-items: center; }
+.checkbox-label input { width: 22px; height: 22px; min-height: 22px; flex: 0 0 22px; }
+.vergangener-spieltag { margin: .7rem 0; padding: .8rem; border: 1px solid var(--border); border-radius: 10px; }
 .auslosung-form p { margin-bottom: 0; }
 .spieltag-gruppen { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: .8rem; margin-bottom: 1rem; }
 .spieltag-gruppe { min-width: 0; padding: .9rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
@@ -108,7 +118,7 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
 .kreuztabelle { margin: 0 0 1.2rem; }
 .kreuztabelle summary { margin-bottom: .6rem; }
 .kreuztabelle td, .kreuztabelle th { text-align: center; }
-.kreuztabelle th:nth-child(2) { text-align: left; }
+.kreuztabelle th[scope="row"], .kreuztabelle thead th:first-child { text-align: left; }
 .kreuztabelle .diagonale { background: #e2e8f0; color: #64748b; }
 .kreuztabelle .offene-partie { color: #64748b; }
 .verlauf-dialog { width: min(1100px, calc(100% - 2rem)); max-height: calc(100vh - 2rem); }
@@ -137,6 +147,8 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
   details.runde:not([open]) > *:not(summary) { display: block; }
   .runde { break-inside: avoid; }
   .spieltag-gruppe { break-inside: avoid; }
+  .vergangener-spieltag { break-inside: avoid; }
+  .vergangener-spieltag:not([open]) > *:not(summary) { display: block; }
   .kreuztabelle:not([open]) > *:not(summary) { display: block; }
   .kreuztabelle { break-inside: avoid; }
 }

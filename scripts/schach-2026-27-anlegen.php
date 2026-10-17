@@ -22,7 +22,25 @@ function schachSaison2026(int $id): array
     $alt = array_map(fn($w) => ['a' => $w[0], 'b' => $w[1], 'punkteA' => $w[2], 'punkteB' => $w[3], 'stand' => $w[4],
         'quelle' => 'Rolf Prums: Turniertabelle 2026-27.ods, E-Mail vom ' . $w[4] . '; Nutzerbestätigung 17.10.2026: keine zwei Remis pro Paarung',
         'keineDoppelRemis' => true], $werte);
-    return schachAltErgebnisse($turnier, $alt);
+    $turnier = schachAltErgebnisse($turnier, $alt);
+    $turnier['historischeSpieltage'] = schachSaisonSpieltage2026($turnier);
+    return $turnier;
+}
+
+function schachSaisonSpieltage2026(array $turnier): array
+{
+    $mail = fn($id, $titel) => ['titel' => $titel, 'url' => 'https://mail.google.com/mail/u/0/#all/' . $id];
+    return schachHistorischeSpieltagePruefen($turnier, [
+        ['datum' => '2026-10-02', 'paarungen' => ['1-6', '2-5', '3-4', '9-11'], 'anwesend' => [1, 2, 3, 4, 5, 6, 9, 11], 'anwesenheitVollstaendig' => false,
+            'hinweis' => 'Datum aus Rolfs Mail vom 03.10. („gestrige Spielergebnisse“) und der nachgereichten „Tabelle von Freitag“ vom 04.10. abgeleitet. Die vier Paarungen stehen in dieser ersten Tabelle. Weitere Anwesende sind nicht belegt.',
+            'quellen' => [$mail('1a10263f0c43e4fe', '03.10.2026: Schachturnier'), $mail('1a1075e1c5c6814d', '04.10.2026: Tabelle von Freitag')]],
+        ['datum' => '2026-10-09', 'paarungen' => ['2-4', '5-11', '3-9'], 'anwesend' => [2, 3, 4, 5, 9, 11], 'anwesenheitVollstaendig' => true,
+            'hinweis' => 'Rolf nennt sechs Mitspieler und die drei Hin- und Rückspielergebnisse ausdrücklich in seiner Mail. Sie stimmen mit den neuen Einträgen der Tabelle überein.',
+            'quellen' => [$mail('1a1214ce39be6bd2', '09.10.2026: Schachergebnisse und Tabelle')]],
+        ['datum' => '2026-10-16', 'paarungen' => ['1-5', '2-9', '4-11', '6-8', '7-10'], 'anwesend' => range(1, 11), 'anwesenheitVollstaendig' => true,
+            'hinweis' => 'Laut Rolf waren alle elf anwesend. Die fünf Paarungen ergeben sich aus den neuen Einträgen gegenüber der Tabelle vom 09.10. Für Erich ist an diesem Tag keine gewertete Partie dokumentiert. Eine zusätzliche Partie oder Dreiergruppe ist aus den Mails nicht rekonstruierbar.',
+            'quellen' => [$mail('1a1214ce39be6bd2', '09.10.2026: vorheriger Tabellenstand'), $mail('1a145a320da4aa65', '16.10.2026: Schachergebnisse 16.10.26')]],
+    ]);
 }
 
 if (defined('SCHACH_SAISON_NUR_FUNKTIONEN')) return;
@@ -30,6 +48,17 @@ $_GET['action'] = 'importieren';
 $turnier = withStore(function (array &$turniere, array $verlauf): array {
     foreach ($turniere as $index => $vorhanden) {
         if ($vorhanden['titel'] !== 'Schachturnier 2026/27' || !istSchach($vorhanden)) continue;
+        if (in_array('--spieltage-ergaenzen', $GLOBALS['argv'], true)) {
+            $tage = schachSaisonSpieltage2026($vorhanden);
+            if (!empty($vorhanden['historischeSpieltage']) && $vorhanden['historischeSpieltage'] !== $tage) throw new ApiError('Bereits vorhandene historische Spieltage werden nicht ersetzt.');
+            if (($vorhanden['historischeSpieltage'] ?? []) !== $tage) {
+                $vorhanden['historischeSpieltage'] = $tage;
+                $neu = importiertesTurnier(['format' => 'turnierverwaltung-backup', 'turnier' => $vorhanden], $vorhanden['id']);
+                $neu['version'] = $vorhanden['version'] + 1;
+                $turniere[$index] = $neu;
+                return $neu;
+            }
+        }
         if (in_array('--einzelwertung-ergaenzen', $GLOBALS['argv'], true)) {
             // Nur die bestätigte Einzelwertung ergänzen, keine bestehenden Partien ersetzen.
             $geaendert = false;
