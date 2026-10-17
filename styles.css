@@ -11,6 +11,7 @@
   font-family: "Segoe UI", Arial, sans-serif;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; color: var(--ink); background: #ecfdf5; }
 button, input, select { font: inherit; }
 button, select, input { min-height: 42px; border: 1px solid var(--border); border-radius: 8px; }
@@ -83,11 +84,40 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
 .paarung { margin-bottom: .45rem; font-weight: 750; overflow-wrap: anywhere; }
 .ergebnis { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
 .ergebnis > input { width: 74px; }
+.ergebnis > select { flex: 1; min-width: 150px; width: auto; }
 .ergebnis-info { margin: .65rem 0 0; }
 .satz { display: flex; align-items: center; gap: .4rem; width: 100%; }
 .satz span { min-width: 54px; }
 .satz input { width: 74px; }
 .erfolg { color: #047857; font-weight: 650; }
+.fehler { color: #991b1b; }
+.spieltag { margin: 1.2rem 0; padding: 1rem; border: 2px solid var(--accent); border-radius: 12px; }
+.auslosung-form { display: grid; gap: .8rem; margin-bottom: 1rem; }
+.auslosung-form > label:not(.checkbox-label) { display: grid; gap: .35rem; max-width: 260px; }
+.anwesenheit { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .5rem; border: 1px solid var(--border); border-radius: 8px; }
+.anwesenheit label, .checkbox-label { display: flex; gap: .55rem; align-items: center; }
+.anwesenheit input, .checkbox-label input { width: 22px; height: 22px; min-height: 22px; flex: 0 0 22px; }
+.auslosung-form p { margin-bottom: 0; }
+.spieltag-gruppen { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: .8rem; margin-bottom: 1rem; }
+.spieltag-gruppe { min-width: 0; padding: .9rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.spieltag-gruppe h4 { overflow-wrap: anywhere; margin-top: 0; }
+.spieltag-partie { padding-top: .7rem; margin-top: .7rem; border-top: 1px solid var(--border); }
+.freie-partie { padding: .7rem; border: 1px dashed var(--accent); border-radius: 8px; }
+.zuschauer .leitung-only { display: none; }
+.zugang { width: 100%; justify-content: flex-end; }
+.kreuztabelle { margin: 0 0 1.2rem; }
+.kreuztabelle summary { margin-bottom: .6rem; }
+.kreuztabelle td, .kreuztabelle th { text-align: center; }
+.kreuztabelle th:nth-child(2) { text-align: left; }
+.kreuztabelle .diagonale { background: #e2e8f0; color: #64748b; }
+.kreuztabelle .offene-partie { color: #64748b; }
+.verlauf-dialog { width: min(1100px, calc(100% - 2rem)); max-height: calc(100vh - 2rem); }
+.verlauf-inhalt { padding: 1.25rem; }
+.verlauf-inhalt > p, .verlauf-inhalt > select { margin-bottom: 1rem; }
+.verlauf-eintrag { padding: 1rem 0; border-bottom: 1px solid var(--border); }
+.verlauf-eintrag p { margin-bottom: .4rem; overflow-wrap: anywhere; }
+#sicherungsVorschau { margin: 1rem 0; padding: 1rem; border: 2px solid var(--accent); border-radius: 10px; }
+#sicherungsVorschau > .toolbar { margin-bottom: 1rem; }
 .beamer .management-only, .beamer .turnier-kopf button, .beamer .tisch-form, .beamer .einstellungs-form { display: none; }
 .beamer .app { width: min(1800px, 100%); }
 .beamer .beamer-panel { font-size: clamp(1rem, 1.4vw, 1.35rem); }
@@ -106,4 +136,7 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
   .panel { border: 0; box-shadow: none; padding: 0; }
   details.runde:not([open]) > *:not(summary) { display: block; }
   .runde { break-inside: avoid; }
+  .spieltag-gruppe { break-inside: avoid; }
+  .kreuztabelle:not([open]) > *:not(summary) { display: block; }
+  .kreuztabelle { break-inside: avoid; }
 }

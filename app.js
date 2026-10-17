@@ -1,4 +1,6 @@
-import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=2';
+import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=6';
+import { istSchach, schachErgebnisText, schachPunkte, schachKreuztabelle } from './schach-domain.js?v=5';
+import { renderSchachSpieltag } from './schach-spieltag.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, text, className = '') => {
@@ -8,7 +10,9 @@ const el = (tag, text, className = '') => {
   return node;
 };
 
-const state = { turniere: [], ausgewaehlt: null, busy: false, beamer: new URLSearchParams(location.search).has('beamer') };
+const parameter = new URLSearchParams(location.search);
+const state = { turniere: [], ausgewaehlt: Number(parameter.get('turnier')) || null, busy: false, beamer: parameter.has('beamer'), leitung: { eingerichtet: false, angemeldet: false, csrf: '' }, verlauf: [] };
+const darfBearbeiten = () => state.leitung.angemeldet && !state.beamer;
 const form = $('turnierForm');
 const paare = $('paare');
 const details = $('details');
@@ -61,19 +65,38 @@ const setBusy = busy => {
   document.querySelectorAll('button, input, select').forEach(node => { node.disabled = busy || node.dataset.gesperrt === 'true'; });
 };
 
+const zugangAktualisieren = () => {
+  document.body.classList.toggle('zuschauer', !darfBearbeiten());
+  $('leitungsStatus').textContent = darfBearbeiten() ? 'Als Turnierleitung angemeldet' : 'Zuschaueransicht';
+  $('leitungAnmelden').hidden = state.leitung.angemeldet;
+  $('leitungAnmelden').dataset.gesperrt = String(!state.leitung.eingerichtet);
+  $('leitungAnmelden').disabled = state.busy || !state.leitung.eingerichtet;
+  $('leitungAnmelden').title = state.leitung.eingerichtet ? '' : 'Die Anmeldung ist noch nicht freigeschaltet.';
+};
+
 const request = async (action = '', options = {}) => {
   const response = await fetch(`api.php${action ? `?action=${action}` : ''}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.leitung.csrf, ...options.headers },
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+  if (!response.ok) {
+    if (response.status === 401 && action !== 'anmelden') {
+      state.leitung.angemeldet = false;
+      turnierDialog.close(); $('verlaufDialog').close(); $('pinDialog').close();
+      render();
+      meldung(payload.error || 'Bitte erneut als Turnierleitung anmelden.');
+    }
+    throw new Error(payload.error || `HTTP ${response.status}`);
+  }
   return payload;
 };
 
 const modusName = modus => modus === 'ko' ? 'K.-o.-System' : 'Jeder gegen jeden';
+const sportartName = turnier => istSchach(turnier) ? 'Schach' : 'Tischtennis-Doppel';
 const gewinnsaetze = turnier => turnier.gewinnsaetze ?? 3;
-const wertungsName = turnier => `${gewinnsaetze(turnier)} Gewinnsätze (Best of ${gewinnsaetze(turnier) * 2 - 1})`;
+const wertungsName = turnier => istSchach(turnier) ? `${turnier.durchgaenge === 2 ? 'Hin- und Rückspiel' : 'Eine Partie pro Paarung'} · Sieg 1 · Remis ½ · Niederlage 0` : `${gewinnsaetze(turnier)} Gewinnsätze (Best of ${gewinnsaetze(turnier) * 2 - 1})`;
 const gueltigesErgebnis = (a, b, ziel) => Number.isInteger(a) && Number.isInteger(b)
   && ((a === ziel && b >= 0 && b < ziel) || (b === ziel && a >= 0 && a < ziel));
 
@@ -102,13 +125,13 @@ const siegerurkundenDrucken = turnier => {
     <main class="urkunde">
       <div class="rahmen">
         <img src="${htmlSicher(logo)}" alt="Bezirkssymbol Reinickendorf">
-        <p class="verein">Tischtennis-Doppelturnier</p>
+        <p class="verein">${istSchach(turnier) ? 'Schachturnier' : 'Tischtennis-Doppelturnier'}</p>
         <h1>${urkunde.platz === 1 ? 'Siegerurkunde' : 'Urkunde'}</h1>
         <p class="einleitung">Diese Urkunde wird verliehen an</p>
         <p class="name">${htmlSicher(urkunde.name)}</p>
         <p class="leistung">für den <strong>${urkunde.platz}. Platz</strong> beim</p>
         <h2>${htmlSicher(turnier.titel)}</h2>
-        <p class="doppel">im Doppel mit ${htmlSicher(urkunde.partner)}</p>
+        ${istSchach(turnier) ? '' : `<p class="doppel">im Doppel mit ${htmlSicher(urkunde.partner)}</p>`}
         <div class="abschluss"><span>${htmlSicher(datum)}</span><span>Turnierleitung</span></div>
       </div>
     </main>`).join('');
@@ -141,21 +164,42 @@ const siegerurkundenDrucken = turnier => {
   fenster.focus();
 };
 
-const aktualisiereAnzahl = () => { $('anzahl').textContent = `${paare.children.length} Doppelpaare · erlaubt: 5 bis 32`; };
+const formularIstSchach = () => form.elements.sportart.value === 'schach';
+const teilnehmerMinimum = () => formularIstSchach() ? 2 : 5;
+const aktualisiereAnzahl = () => { $('anzahl').textContent = `${paare.children.length} ${formularIstSchach() ? 'Spieler' : 'Doppelpaare'} · erlaubt: ${teilnehmerMinimum()} bis 32`; };
+const turnierFormAnpassen = () => {
+  const schach = formularIstSchach(), begonnen = form.dataset.begonnen === 'true';
+  form.dataset.sportart = form.elements.sportart.value;
+  if (schach) form.elements.modus.value = 'jeder-gegen-jeden';
+  for (const [name, gesperrt] of [['sportart', begonnen], ['modus', begonnen || schach], ['durchgaenge', begonnen || !schach], ['gewinnsaetze', begonnen || schach], ['satzweise', schach]]) {
+    form.elements[name].dataset.gesperrt = String(gesperrt);
+    form.elements[name].disabled = state.busy || gesperrt;
+  }
+  $('spielwertungFeld').hidden = schach;
+  $('erfassungsartFeld').hidden = schach;
+  $('schachHinweis').hidden = !schach;
+  $('schachDurchgaengeFeld').hidden = !schach;
+  $('tischanzahlLabel').textContent = schach ? 'Verfügbare Bretter (optional)' : 'Verfügbare Tische (optional)';
+  $('teilnehmerHinweis').textContent = schach ? 'Für jeden Spieler einen Namen eingeben. Möglich sind 2 bis 32 Spieler.' : 'Je Doppelpaar die Namen der beiden Spieler eingeben. Möglich sind 5 bis 32 Doppelpaare.';
+  $('paarHinzufuegen').textContent = schach ? 'Spieler hinzufügen' : 'Paar hinzufügen';
+  $('fantasiePaar').textContent = schach ? 'Fantasiespieler einfügen' : 'Fantasiepaar einfügen';
+  aktualisiereAnzahl();
+};
 const paareNeuNummerieren = container => {
+  const schach = formularIstSchach();
   [...container.children].forEach((feld, index) => {
     const nummer = index + 1; feld.dataset.id = nummer;
-    feld.querySelector('legend').textContent = `Paar ${nummer}`;
-    [...feld.querySelectorAll('input')].forEach((input, position) => input.setAttribute('aria-label', `Paar ${nummer}, Spieler ${position + 1}`));
-    feld.querySelector('.paar-loeschen')?.setAttribute('aria-label', `Paar ${nummer} löschen`);
+    feld.querySelector('legend').textContent = `${schach ? 'Spieler' : 'Paar'} ${nummer}`;
+    [...feld.querySelectorAll('input')].forEach((input, position) => input.setAttribute('aria-label', schach ? `Spieler ${nummer}` : `Paar ${nummer}, Spieler ${position + 1}`));
+    feld.querySelector('.paar-loeschen')?.setAttribute('aria-label', `${schach ? 'Spieler' : 'Paar'} ${nummer} löschen`);
   });
   container.querySelectorAll('.paar-loeschen').forEach(button => {
-    button.dataset.gesperrt = String(container.children.length <= 5);
-    button.disabled = container.children.length <= 5;
+    button.dataset.gesperrt = String(container.children.length <= teilnehmerMinimum());
+    button.disabled = state.busy || container.children.length <= teilnehmerMinimum();
   });
   if (container === paare) aktualisiereAnzahl();
 };
-const paarFeldHinzufuegen = (container, spieler = [{ name: '' }, { name: '' }]) => {
+const paarFeldHinzufuegen = (container, spieler = Array.from({ length: formularIstSchach() ? 1 : 2 }, () => ({ name: '' }))) => {
   const nummer = container.children.length + 1;
   const feld = el('fieldset', undefined, 'paar'); feld.dataset.id = nummer;
   feld.append(el('legend', `Paar ${nummer}`));
@@ -163,21 +207,21 @@ const paarFeldHinzufuegen = (container, spieler = [{ name: '' }, { name: '' }]) 
   spieler.forEach((person, index) => {
     const box = el('div', undefined, 'person');
     const input = el('input'); input.value = person.name; input.required = true; input.maxLength = 100;
-    input.placeholder = `Name Spieler ${index + 1}`;
+    input.placeholder = formularIstSchach() ? 'Name des Spielers' : `Name Spieler ${index + 1}`;
     input.setAttribute('aria-label', `Paar ${nummer}, Spieler ${index + 1}`);
     box.append(input); namen.append(box);
   });
   const loeschen = el('button', '🗑', 'paar-loeschen small danger'); loeschen.type = 'button';
-  loeschen.setAttribute('aria-label', `Paar ${nummer} löschen`); loeschen.title = 'Paar löschen';
+  loeschen.title = formularIstSchach() ? 'Spieler löschen' : 'Paar löschen';
   loeschen.addEventListener('click', async () => {
-    if (container.children.length <= 5) return;
+    if (container.children.length <= teilnehmerMinimum()) return;
     const namen = [...feld.querySelectorAll('input')].map(input => input.value.trim()).filter(Boolean);
-    const bezeichnung = namen.length ? namen.join(' / ') : `Paar ${feld.dataset.id}`;
+    const bezeichnung = namen.length ? namen.join(' / ') : `${formularIstSchach() ? 'Spieler' : 'Paar'} ${feld.dataset.id}`;
     if (!await dialogOeffnen({
-      titel: 'Doppelpaar entfernen?',
-      text: 'Dieses Doppelpaar wirklich aus dem Turnier entfernen? ',
+      titel: formularIstSchach() ? 'Spieler entfernen?' : 'Doppelpaar entfernen?',
+      text: formularIstSchach() ? 'Diesen Spieler wirklich aus dem Turnier entfernen? ' : 'Dieses Doppelpaar wirklich aus dem Turnier entfernen? ',
       hervorhebung: bezeichnung,
-      bestaetigung: 'Doppelpaar entfernen',
+      bestaetigung: formularIstSchach() ? 'Spieler entfernen' : 'Doppelpaar entfernen',
       gefahr: true,
     })) return;
     feld.remove(); paareNeuNummerieren(container);
@@ -196,20 +240,56 @@ const aktualisiereFantasiePaarSichtbarkeit = () => {
 };
 
 const renderTabelle = turnier => {
+  const schach = istSchach(turnier);
   const wrap = el('div', undefined, 'table-wrap'), table = el('table');
-  table.append(el('caption', 'Rangfolge: Siege, Satzdifferenz, direkter Vergleich.'));
+  table.append(el('caption', schach ? 'Rangfolge: Punkte, direkter Vergleich innerhalb der punktgleichen Gruppe (sobald vollständig gespielt), sonst gleicher Rang.' : 'Rangfolge: Siege, Satzdifferenz, direkter Vergleich.'));
   const thead = el('thead'), header = el('tr');
-  for (const text of ['Rang', 'Doppelpaar', 'Spiele', 'Siege', 'Niederlagen', 'Sätze', 'Differenz']) {
+  for (const text of schach ? ['Rang', 'Spieler', 'Partien', 'Siege', 'Remis', 'Niederlagen', 'Punkte'] : ['Rang', 'Doppelpaar', 'Spiele', 'Siege', 'Niederlagen', 'Sätze', 'Differenz']) {
     const th = el('th', text); th.scope = 'col'; header.append(th);
   }
   thead.append(header); table.append(thead);
   const tbody = el('tbody');
   for (const zeile of turnierTabelle(turnier)) {
     const row = el('tr');
-    for (const text of [zeile.rang, zeile.name, zeile.spiele, zeile.siege, zeile.niederlagen, `${zeile.fuer}:${zeile.gegen}`, zeile.fuer - zeile.gegen]) row.append(el('td', text));
+    const werte = schach ? [zeile.rang, zeile.name, zeile.spiele, ...[zeile.siege, zeile.remis, zeile.niederlagen].map(wert => zeile.wertungUnbekannt ? '—' : wert), schachPunkte(zeile.punkte)] : [zeile.rang, zeile.name, zeile.spiele, zeile.siege, zeile.niederlagen, `${zeile.fuer}:${zeile.gegen}`, zeile.fuer - zeile.gegen];
+    for (const text of werte) row.append(el('td', text));
     tbody.append(row);
   }
-  table.append(tbody); wrap.append(table); return wrap;
+  table.append(tbody); wrap.append(table);
+  if (turnier.altErgebnisse?.length) wrap.append(el('p', `Historische Ergebnisse sind Summen aus Hin- und Rückspiel. Farben und Reihenfolge sind unbekannt. ${turnier.altErgebnisse.every(e => e.punkteA !== 1 || e.keineDoppelRemis) ? 'Die Einzelbilanz ist eindeutig: Bei den historischen 1:1-Paarungen gab es jeweils einen Sieg pro Spieler.' : 'Bei unklarer Einzelbilanz bleiben Siege, Remis und Niederlagen ohne Gesamtangabe.'} Die Rangfolge folgt der oben beschriebenen Wertung.`, 'muted'));
+  return wrap;
+};
+
+const renderKreuztabelle = turnier => {
+  const abschnitt = el('details', undefined, 'kreuztabelle'); abschnitt.open = true;
+  abschnitt.append(el('summary', 'Kreuztabelle'));
+  const wrap = el('div', undefined, 'table-wrap'), table = el('table');
+  table.append(el('caption', 'Zeile gegen Spalte: 1 = Sieg, ½ = Remis, 0 = Niederlage, · = offen. W/S zeigt die Farbe des Spielers in der Zeile. Die Nummern entsprechen den Startnummern.'));
+  const head = el('thead'), header = el('tr');
+  for (const text of ['Nr.', 'Spieler', ...turnier.teilnehmer.map((person, index) => index + 1), 'Punkte']) {
+    const th = el('th', text); th.scope = 'col'; header.append(th);
+  }
+  head.append(header); table.append(head);
+  const punkte = new Map(turnierTabelle(turnier).map(person => [person.id, person.punkte]));
+  const tbody = el('tbody');
+  schachKreuztabelle(turnier).forEach((zeile, index) => {
+    const row = el('tr'); row.append(el('td', index + 1));
+    const name = el('th', zeile.name); name.scope = 'row'; row.append(name);
+    zeile.felder.forEach((feld, gegner) => {
+      if (feld?.gesamt !== undefined) {
+        const td = el('td', `${schachPunkte(feld.gesamt)} ges.`);
+        td.title = 'Punkte aus beiden Partien zusammen; Farben und Reihenfolge unbekannt.';
+        row.append(td); return;
+      }
+      const partien = feld === null ? [] : (feld.partien ?? [feld]);
+      const text = partien.map(partie => `${partie.punkte === null ? '·' : schachPunkte(partie.punkte)} ${partie.farbe === 'Weiß' ? 'W' : 'S'}`).join(' / ');
+      const td = el('td', feld === null ? '—' : text, feld === null ? 'diagonale' : partien.some(partie => partie.punkte === null) ? 'offene-partie' : '');
+      td.setAttribute('aria-label', feld === null ? 'Keine Partie gegen sich selbst' : `${zeile.name} gegen ${turnier.teilnehmer[gegner].name}: ${partien.map(partie => `Runde ${partie.runde}, ${partie.farbe}: ${partie.punkte === null ? 'noch offen' : `${schachPunkte(partie.punkte)} Punkte`}`).join('; ')}`);
+      td.title = td.getAttribute('aria-label'); row.append(td);
+    });
+    row.append(el('td', schachPunkte(punkte.get(zeile.id)))); tbody.append(row);
+  });
+  table.append(tbody); wrap.append(table); abschnitt.append(wrap); return abschnitt;
 };
 
 const mutation = async (action, body, erfolgstext = 'Ergebnis gespeichert.') => {
@@ -252,31 +332,84 @@ const rundenTitel = (turnier, index) => {
 };
 
 const tischText = (turnier, termin, anzahlSpiele) => {
-  if (!turnier.anzahlTische) return 'Tisch noch offen';
+  const bezeichnung = istSchach(turnier) ? 'Brett' : 'Tisch';
+  if (!turnier.anzahlTische) return `${bezeichnung} noch offen`;
   const tisch = termin % turnier.anzahlTische + 1;
-  if (anzahlSpiele <= turnier.anzahlTische) return `Tisch ${tisch}`;
-  return `Spielblock ${Math.floor(termin / turnier.anzahlTische) + 1} · Tisch ${tisch}`;
+  if (anzahlSpiele <= turnier.anzahlTische) return `${bezeichnung} ${tisch}`;
+  return `Spielblock ${Math.floor(termin / turnier.anzahlTische) + 1} · ${bezeichnung} ${tisch}`;
 };
+
+const paarungsText = (turnier, spiel, names) => istSchach(turnier)
+  ? spiel.altErgebnis ? `${names.get(spiel.a)} – ${names.get(spiel.b)} (historische Paarung)` : `${names.get(spiel.a)} (Weiß) – ${names.get(spiel.b)} (Schwarz)`
+  : `${names.get(spiel.a) ?? 'Sieger der Vorrunde'} – ${names.get(spiel.b) ?? (spiel.status === 'freilos' ? 'Freilos' : 'Sieger der Vorrunde')}`;
+
+const schachErgebnisInfo = (spiel, names) => spiel.altErgebnis ? schachErgebnisText(spiel) : `${schachErgebnisText(spiel)} · ${spiel.sieger === null ? 'Remis' : `Sieger: ${names.get(spiel.sieger)}`}`;
+
+const renderSchachErgebnis = (turnier, spiel, titel, names) => {
+  const ergebnisForm = el('form', undefined, 'ergebnis');
+  const auswahl = el('select'); auswahl.name = 'ergebnis'; auswahl.required = true;
+  auswahl.setAttribute('aria-label', `${titel}: Ergebnis ${names.get(spiel.a)} (Weiß) gegen ${names.get(spiel.b)} (Schwarz)`);
+  for (const [wert, text] of [['', 'Ergebnis wählen …'], ['1:0', '1:0 · Weiß gewinnt'], ['0.5:0.5', '½:½ · Remis'], ['0:1', '0:1 · Schwarz gewinnt']]) {
+    const option = el('option', text); option.value = wert; auswahl.append(option);
+  }
+  auswahl.value = spiel.status === 'fertig' ? `${spiel.punkteA}:${spiel.punkteB}` : '';
+  const save = el('button', 'Speichern', 'small'); save.type = 'submit';
+  ergebnisForm.append(auswahl, save);
+  ergebnisForm.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!auswahl.value) { meldung('Bitte ein Schachergebnis auswählen.'); return; }
+    const [punkteA, punkteB] = auswahl.value.split(':').map(Number);
+    void speichern(turnier, spiel, { punkteA, punkteB });
+  });
+  if (spiel.status === 'fertig') {
+    const loeschen = el('button', 'Ergebnis löschen', 'small secondary'); loeschen.type = 'button';
+    loeschen.addEventListener('click', async () => {
+      if (!await dialogOeffnen({ titel: 'Ergebnis löschen?', text: 'Das gespeicherte Ergebnis wird entfernt.', bestaetigung: 'Ergebnis löschen', gefahr: true })) return;
+      void mutation(`ergebnis&turnier=${turnier.id}&spiel=${encodeURIComponent(spiel.id)}`, { version: turnier.version, punkteA: null, punkteB: null }, 'Ergebnis gelöscht.');
+    });
+    ergebnisForm.append(loeschen);
+  }
+  return ergebnisForm;
+};
+
+const spieltagAnsicht = (turnier, bearbeiten) => renderSchachSpieltag(turnier, {
+  el, bearbeiten, busy: () => state.busy, setBusy, request, meldung, bestaetigen: dialogOeffnen,
+  ergebnisForm: renderSchachErgebnis, paarungsText,
+  aktualisieren: geaendert => {
+    state.turniere = state.turniere.map(item => item.id === geaendert.id ? geaendert : item);
+    render();
+  },
+});
 
 const renderBeamer = turnier => {
   const names = new Map(turnier.teilnehmer.map(item => [item.id, item.name]));
   const fortschritt = turnierFortschritt(turnier);
   const aktuell = aktuelleRundeIndex(turnier);
   details.className = 'panel beamer-panel';
-  details.append(el('h2', turnier.titel), el('p', `${modusName(turnier.modus)} · ${wertungsName(turnier)} · ${fortschritt.fertig} von ${fortschritt.gesamt} Spielen abgeschlossen`, 'muted'));
+  details.append(el('h2', turnier.titel), el('p', `${sportartName(turnier)} · ${modusName(turnier.modus)} · ${wertungsName(turnier)} · ${fortschritt.fertig} von ${fortschritt.gesamt} ${istSchach(turnier) ? 'Partien' : 'Spielen'} abgeschlossen`, 'muted'));
   if (turnier.modus === 'jeder-gegen-jeden') details.append(el('h3', 'Tabelle'), renderTabelle(turnier));
+  if (istSchach(turnier)) {
+    const spieltag = spieltagAnsicht(turnier, false);
+    if (spieltag) details.append(spieltag);
+    if (turnier.spieltage?.at(-1)?.status === 'aktiv') return;
+  }
   for (const index of [aktuell, aktuell + 1]) {
     const runde = turnier.runden[index];
     if (!runde) continue;
     details.append(el('h3', `${index === aktuell ? 'Aktuell' : 'Danach'}: ${rundenTitel(turnier, index)}`));
+    if (turnier.modus === 'jeder-gegen-jeden') {
+      const dabei = new Set(runde.flatMap(spiel => [spiel.a, spiel.b]));
+      const pause = turnier.teilnehmer.filter(item => !dabei.has(item.id));
+      if (pause.length) details.append(el('p', `Pause: ${pause.map(item => item.name).join(', ')}`, 'muted'));
+    }
     const grid = el('div', undefined, 'beamer-spiele');
     let termin = 0;
     const anzahlSpiele = runde.filter(spiel => spiel.status !== 'freilos').length;
     for (const spiel of runde) {
       const spielTermin = spiel.status === 'freilos' ? null : termin++;
       const card = el('article', undefined, 'spiel');
-      card.append(el('p', `${names.get(spiel.a) ?? 'Sieger der Vorrunde'} – ${names.get(spiel.b) ?? (spiel.status === 'freilos' ? 'Freilos' : 'Sieger der Vorrunde')}`, 'paarung'));
-      if (spiel.status === 'fertig') card.append(el('p', `Ergebnis ${spiel.punkteA}:${spiel.punkteB}`, 'erfolg'));
+      card.append(el('p', paarungsText(turnier, spiel, names), 'paarung'));
+      if (spiel.status === 'fertig') card.append(el('p', istSchach(turnier) ? schachErgebnisInfo(spiel, names) : `Ergebnis ${spiel.punkteA}:${spiel.punkteB}`, 'erfolg'));
       else if (spiel.status === 'freilos') card.append(el('p', 'Automatisch weiter', 'muted'));
       else if (spiel.status === 'wartet') card.append(el('p', 'Vorherige Spiele noch offen', 'muted'));
       else {
@@ -298,10 +431,15 @@ const renderDetails = () => {
   const fortschritt = turnierFortschritt(turnier);
   const kopf = el('div', undefined, 'turnier-kopf toolbar');
   kopf.append(el('h2', turnier.titel));
-  details.append(kopf, el('p', `${modusName(turnier.modus)} · ${wertungsName(turnier)} · ${turnier.teilnehmer.length} Doppelpaare · ${fortschritt.fertig} von ${fortschritt.gesamt} Spielen abgeschlossen`, 'muted'));
+  details.append(kopf, el('p', `${sportartName(turnier)} · ${modusName(turnier.modus)} · ${wertungsName(turnier)} · ${turnier.teilnehmer.length} ${istSchach(turnier) ? 'Spieler' : 'Doppelpaare'} · ${fortschritt.fertig} von ${fortschritt.gesamt} ${istSchach(turnier) ? 'Partien' : 'Spielen'} abgeschlossen`, 'muted'));
+  if (istSchach(turnier)) {
+    const spieltag = spieltagAnsicht(turnier, darfBearbeiten());
+    if (spieltag) details.append(spieltag);
+  }
 
   if (turnier.modus === 'jeder-gegen-jeden') {
     details.append(el('h3', 'Tabelle'), renderTabelle(turnier));
+    if (istSchach(turnier)) details.append(renderKreuztabelle(turnier));
     if (fortschritt.fertig === fortschritt.gesamt) details.append(el('p', 'Turnier abgeschlossen.', 'erfolg'));
   } else {
     const finale = turnier.runden.at(-1)[0];
@@ -326,13 +464,20 @@ const renderDetails = () => {
     const anzahlSpiele = runde.filter(spiel => spiel.status !== 'freilos').length;
     for (const spiel of runde) {
       const card = el('article', undefined, 'spiel');
-      card.append(el('p', `${names.get(spiel.a) ?? 'Sieger der Vorrunde'} – ${names.get(spiel.b) ?? (spiel.status === 'freilos' ? 'Freilos' : 'Sieger der Vorrunde')}`, 'paarung'));
+      card.append(el('p', paarungsText(turnier, spiel, names), 'paarung'));
       if (spiel.status !== 'freilos') {
         card.append(el('p', tischText(turnier, termin, anzahlSpiele), 'muted'));
         termin++;
       }
-      if (['freilos', 'wartet'].includes(spiel.status)) {
+      if (spiel.altErgebnis) {
+        card.append(el('p', `${schachErgebnisText(spiel)} · Farben und Reihenfolge unbekannt.`, 'erfolg ergebnis-info'));
+      } else if (['freilos', 'wartet'].includes(spiel.status)) {
         card.append(el('p', spiel.status === 'freilos' ? 'Automatisch weiter' : 'Vorherige Spiele sind noch offen', 'muted'));
+      } else if (!darfBearbeiten()) {
+        card.append(el('p', spiel.status !== 'fertig' ? 'Ergebnis noch offen' : istSchach(turnier) ? schachErgebnisInfo(spiel, names) : `Sätze ${spiel.punkteA}:${spiel.punkteB} · Sieger: ${names.get(spiel.sieger)}`, spiel.status === 'fertig' ? 'erfolg ergebnis-info' : 'muted'));
+      } else if (istSchach(turnier)) {
+        card.append(renderSchachErgebnis(turnier, spiel, titel, names));
+        if (spiel.status === 'fertig') card.append(el('p', schachErgebnisInfo(spiel, names), 'erfolg ergebnis-info'));
       } else {
         const ergebnisForm = el('form', undefined, 'ergebnis');
         if (turnier.satzweise) {
@@ -393,13 +538,18 @@ const renderDetails = () => {
     section.append(spiele);
     runden.append(section);
   }
-  details.append(runden);
+  if (istSchach(turnier) && turnier.spieltage?.length) {
+    const gesamt = el('details', undefined, 'gesamtplan');
+    gesamt.append(el('summary', 'Vollständiger Turnierplan (unabhängig von der Tagesauslosung)'), runden);
+    details.append(gesamt);
+  } else details.append(runden);
 };
 
 const render = () => {
+  zugangAktualisieren();
   auswahl.replaceChildren();
   for (const turnier of state.turniere) {
-    const option = el('option', `${turnier.titel} · ${modusName(turnier.modus)}`); option.value = turnier.id; auswahl.append(option);
+    const option = el('option', `${turnier.titel} · ${sportartName(turnier)} · ${modusName(turnier.modus)}`); option.value = turnier.id; auswahl.append(option);
   }
   if (!state.turniere.some(turnier => turnier.id === state.ausgewaehlt)) state.ausgewaehlt = state.turniere[0]?.id ?? null;
   auswahl.value = state.ausgewaehlt ?? '';
@@ -416,7 +566,7 @@ const render = () => {
 const load = async () => {
   if (state.busy) return;
   setBusy(true); meldung('');
-  try { const result = await request(); state.turniere = result.turniere; render(); }
+  try { const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung; render(); }
   catch (error) { meldung(error.message); }
   finally { setBusy(false); }
 };
@@ -425,10 +575,7 @@ const turnierFormZuruecksetzen = () => {
   bearbeitetesTurnierId = null;
   form.dataset.begonnen = 'false';
   form.reset();
-  delete form.elements.modus.dataset.gesperrt;
-  delete form.elements.gewinnsaetze.dataset.gesperrt;
-  form.elements.modus.disabled = false;
-  form.elements.gewinnsaetze.disabled = false;
+  turnierFormAnpassen();
   $('paarHinzufuegen').hidden = false;
   aktualisiereFantasiePaarSichtbarkeit();
   $('turnierFormTitel').textContent = 'Neues Turnier anlegen';
@@ -439,6 +586,8 @@ const turnierFormZuruecksetzen = () => {
 
 const turnierFormOeffnen = turnier => {
   bearbeitetesTurnierId = turnier.id;
+  form.elements.sportart.value = turnier.sportart ?? 'tischtennis';
+  form.elements.durchgaenge.value = String(turnier.durchgaenge ?? 1);
   form.elements.titel.value = turnier.titel;
   form.elements.modus.value = turnier.modus;
   form.elements.gewinnsaetze.value = String(gewinnsaetze(turnier));
@@ -447,12 +596,9 @@ const turnierFormOeffnen = turnier => {
   paare.replaceChildren();
   turnier.teilnehmer.forEach(teilnehmer => paarFeldHinzufuegen(paare, teilnehmer.spieler));
   aktualisiereAnzahl();
-  const begonnen = turnier.runden.flat().some(spiel => spiel.punkteA !== null || spiel.punkteB !== null);
+  const begonnen = Boolean(turnier.spieltage?.length || turnier.altErgebnisse?.length) || turnier.runden.flat().some(spiel => spiel.punkteA !== null || spiel.punkteB !== null);
   form.dataset.begonnen = String(begonnen);
-  form.elements.modus.disabled = begonnen;
-  form.elements.gewinnsaetze.disabled = begonnen;
-  form.elements.modus.dataset.gesperrt = String(begonnen);
-  form.elements.gewinnsaetze.dataset.gesperrt = String(begonnen);
+  turnierFormAnpassen();
   $('paarHinzufuegen').hidden = begonnen;
   aktualisiereFantasiePaarSichtbarkeit();
   paare.querySelectorAll('.paar-loeschen').forEach(button => { button.hidden = begonnen; });
@@ -469,7 +615,7 @@ form.addEventListener('submit', async event => {
     for (const input of paar.querySelectorAll('input')) {
       const name = input.value.trim().replace(/\s+/g, ' '), key = name.toLocaleLowerCase('de');
       if (!name) { meldung('Bitte für jeden Spieler einen Namen angeben.'); return; }
-      if (doppelte.has(key)) { meldung('Ein Spieler darf nur in einem Doppelpaar vorkommen. Gleichnamige Personen bitte unterscheidbar benennen.'); return; }
+      if (doppelte.has(key)) { meldung('Ein Spielername darf im Turnier nur einmal vorkommen. Gleichnamige Personen bitte unterscheidbar benennen.'); return; }
       doppelte.add(key); spieler.push({ name });
     }
     teilnehmer.push({ spieler });
@@ -477,9 +623,10 @@ form.addEventListener('submit', async event => {
   const bestehend = state.turniere.find(turnier => turnier.id === bearbeitetesTurnierId);
   const payload = {
     titel: form.elements.titel.value.trim(),
+    sportart: form.elements.sportart.value,
     modus: form.elements.modus.value,
-    gewinnsaetze: Number(form.elements.gewinnsaetze.value),
-    satzweise: form.elements.satzweise.value === '1',
+    ...(formularIstSchach() ? { durchgaenge: Number(form.elements.durchgaenge.value) } : {}),
+    ...(!formularIstSchach() ? { gewinnsaetze: Number(form.elements.gewinnsaetze.value), satzweise: form.elements.satzweise.value === '1' } : {}),
     anzahlTische: form.elements.anzahlTische.value ? Number(form.elements.anzahlTische.value) : null,
     teilnehmer,
     ...(bestehend ? { version: bestehend.version } : {}),
@@ -532,12 +679,27 @@ $('fantasiePaar').addEventListener('click', () => {
   const verwendet = new Set([...paare.querySelectorAll('input')].map(input => input.value.trim().toLocaleLowerCase('de')).filter(Boolean));
   let ziel = [...paare.children].find(paar => [...paar.querySelectorAll('input')].every(input => !input.value.trim()));
   if (!ziel && paare.children.length < 32) { addPaar(); ziel = paare.lastElementChild; }
-  if (!ziel) { meldung('Alle 32 Doppelpaare sind bereits belegt.'); return; }
-  const freieNamen = kandidaten.filter(name => !verwendet.has(name.toLocaleLowerCase('de'))).slice(0, 2);
-  if (freieNamen.length < 2) { meldung('Es sind keine weiteren Fantasienamen verfügbar.'); return; }
+  if (!ziel) { meldung(`Alle 32 ${formularIstSchach() ? 'Spieler' : 'Doppelpaare'} sind bereits belegt.`); return; }
+  const benoetigt = formularIstSchach() ? 1 : 2;
+  const freieNamen = kandidaten.filter(name => !verwendet.has(name.toLocaleLowerCase('de'))).slice(0, benoetigt);
+  if (freieNamen.length < benoetigt) { meldung('Es sind keine weiteren Fantasienamen verfügbar.'); return; }
   [...ziel.querySelectorAll('input')].forEach((input, index) => { input.value = freieNamen[index]; });
   ziel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  meldung('Fantasiepaar eingefügt.', 'erfolg');
+  meldung(formularIstSchach() ? 'Fantasiespieler eingefügt.' : 'Fantasiepaar eingefügt.', 'erfolg');
+});
+
+form.elements.sportart.addEventListener('change', () => {
+  const namen = [...paare.querySelectorAll('input')].map(input => input.value.trim()).filter(Boolean);
+  if (formularIstSchach() && namen.length > 32) {
+    form.elements.sportart.value = form.dataset.sportart;
+    meldung('Für Schach sind höchstens 32 Spieler möglich. Bitte zuerst die Teilnehmerzahl reduzieren.');
+    return;
+  }
+  turnierFormAnpassen();
+  paare.replaceChildren();
+  const proTeilnehmer = formularIstSchach() ? 1 : 2;
+  const anzahl = namen.length ? Math.max(teilnehmerMinimum(), Math.ceil(namen.length / proTeilnehmer)) : (formularIstSchach() ? 10 : 8);
+  for (let i = 0; i < anzahl; i++) paarFeldHinzufuegen(paare, Array.from({ length: proTeilnehmer }, (_, j) => ({ name: namen[i * proTeilnehmer + j] ?? '' })));
 });
 
 form.elements.titel.addEventListener('input', aktualisiereFantasiePaarSichtbarkeit);
@@ -547,6 +709,7 @@ auswahl.addEventListener('change', () => { state.ausgewaehlt = Number(auswahl.va
 
 $('beamerAnsicht').addEventListener('click', () => {
   const url = new URL(location.href); url.searchParams.set('beamer', '1');
+  if (state.ausgewaehlt !== null) url.searchParams.set('turnier', state.ausgewaehlt);
   window.open(url, '_blank', 'noopener');
 });
 $('drucken').addEventListener('click', () => window.print());
@@ -583,7 +746,137 @@ $('importDatei').addEventListener('change', async event => {
   finally { setBusy(false); }
 });
 
+const inlineFehler = (id, text = '') => { $(id).textContent = text; $(id).hidden = !text; };
+
+$('leitungAnmelden').addEventListener('click', () => {
+  $('leitungForm').reset(); inlineFehler('leitungFehler');
+  $('leitungDialog').showModal(); $('leitungForm').elements.pin.focus();
+});
+$('leitungAbbrechen').addEventListener('click', () => $('leitungDialog').close());
+$('leitungDialog').addEventListener('close', () => $('leitungForm').reset());
+$('leitungForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (state.busy) return;
+  const pin = $('leitungForm').elements.pin.value;
+  setBusy(true); inlineFehler('leitungFehler');
+  try {
+    state.leitung = (await request('anmelden', { method: 'POST', body: JSON.stringify({ pin }) })).leitung;
+    const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung;
+    $('leitungDialog').close(); render(); meldung('Als Turnierleitung angemeldet.', 'erfolg');
+  } catch (error) { inlineFehler('leitungFehler', error.message); }
+  finally { $('leitungForm').elements.pin.value = ''; setBusy(false); }
+});
+$('leitungAbmelden').addEventListener('click', async () => {
+  if (state.busy) return;
+  setBusy(true);
+  try {
+    state.leitung = (await request('abmelden', { method: 'POST', body: '{}' })).leitung;
+    turnierDialog.close(); $('verlaufDialog').close(); $('pinDialog').close();
+    render(); meldung('Abgemeldet. Die Zuschaueransicht ist aktiv.', 'erfolg');
+  } catch (error) { meldung(error.message); }
+  finally { setBusy(false); }
+});
+$('pinAendern').addEventListener('click', () => {
+  $('pinForm').reset(); inlineFehler('pinFehler'); $('pinDialog').showModal(); $('pinForm').elements.aktuellePin.focus();
+});
+$('pinAbbrechen').addEventListener('click', () => $('pinDialog').close());
+$('pinDialog').addEventListener('close', () => $('pinForm').reset());
+$('pinForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (state.busy) return;
+  const felder = $('pinForm').elements;
+  if (felder.neuePin.value !== felder.wiederholung.value) { inlineFehler('pinFehler', 'Die neuen PINs stimmen nicht überein.'); return; }
+  const payload = { aktuellePin: felder.aktuellePin.value, neuePin: felder.neuePin.value };
+  setBusy(true); inlineFehler('pinFehler');
+  try {
+    state.leitung = (await request('pin', { method: 'POST', body: JSON.stringify(payload) })).leitung;
+    $('pinDialog').close(); render(); meldung('Leitungs-PIN geändert.', 'erfolg');
+  } catch (error) { inlineFehler('pinFehler', error.message); }
+  finally { $('pinForm').reset(); setBusy(false); }
+});
+
+const zeitText = zeit => new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(zeit));
+
+const sicherungAnsehen = async (eintrag, seite) => {
+  if (state.busy) return;
+  setBusy(true); inlineFehler('verlaufFehler');
+  try {
+    const result = await request(`stand&sicherung=${encodeURIComponent(eintrag.id)}&seite=${seite}`);
+    const turnier = result.turnier, vorschau = $('sicherungsVorschau');
+    const fortschritt = turnierFortschritt(turnier);
+    vorschau.replaceChildren(el('h3', `${turnier.titel} · Stand ${seite === 'vorher' ? 'vor' : 'nach'} der Änderung`),
+      el('p', `${zeitText(eintrag.zeit)} · ${sportartName(turnier)} · Version ${turnier.version} · ${fortschritt.fertig} von ${fortschritt.gesamt} Spielen abgeschlossen`));
+    const toolbar = el('div', undefined, 'toolbar');
+    const wiederherstellen = el('button', 'Diesen Stand wiederherstellen'); wiederherstellen.type = 'button';
+    wiederherstellen.addEventListener('click', async () => {
+      if (state.busy || !await dialogOeffnen({ titel: 'Früheren Stand wiederherstellen?',
+        text: 'Der angezeigte Stand ersetzt das aktuelle Turnier. Der aktuelle Stand wird dabei automatisch gesichert. ',
+        hervorhebung: turnier.titel, bestaetigung: 'Stand wiederherstellen' })) return;
+      setBusy(true); inlineFehler('verlaufFehler');
+      try {
+        const restored = await request('wiederherstellen', { method: 'POST', body: JSON.stringify({ sicherung: eintrag.id, seite, version: result.aktuelleVersion }) });
+        state.turniere = [restored.turnier, ...state.turniere.filter(item => item.id !== restored.turnier.id)];
+        state.ausgewaehlt = restored.turnier.id;
+        $('verlaufDialog').close(); render(); meldung('Turnierstand wiederhergestellt.', 'erfolg');
+      } catch (error) { inlineFehler('verlaufFehler', error.message); }
+      finally { setBusy(false); }
+    });
+    toolbar.append(wiederherstellen); vorschau.append(toolbar, renderTabelle(turnier));
+    if (istSchach(turnier)) vorschau.append(renderKreuztabelle(turnier));
+    const plan = el('details'); plan.append(el('summary', 'Gesicherten Spielplan ansehen'));
+    const names = new Map(turnier.teilnehmer.map(item => [item.id, item.name]));
+    turnier.runden.forEach((runde, index) => {
+      plan.append(el('h4', rundenTitel(turnier, index)));
+      runde.forEach(spiel => plan.append(el('p', `${paarungsText(turnier, spiel, names)} · ${spiel.status === 'fertig' ? (istSchach(turnier) ? schachErgebnisText(spiel) : `${spiel.punkteA}:${spiel.punkteB}`) : spiel.status === 'freilos' ? 'Freilos' : 'offen'}`)));
+    });
+    vorschau.append(plan); vorschau.hidden = false; vorschau.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  } catch (error) { inlineFehler('verlaufFehler', error.message); }
+  finally { setBusy(false); }
+};
+
+const renderVerlauf = (limit = 50) => {
+  const filter = $('verlaufFilter').value, liste = $('verlaufListe'); liste.replaceChildren();
+  const eintraege = state.verlauf.filter(eintrag => !filter || eintrag.turnierId === Number(filter));
+  if (!eintraege.length) liste.append(el('p', 'Noch keine Änderungen gesichert.', 'muted'));
+  for (const eintrag of eintraege.slice(0, limit)) {
+    const artikel = el('article', undefined, 'verlauf-eintrag');
+    artikel.append(el('p', `${zeitText(eintrag.zeit)} · ${eintrag.titel}`), el('p', eintrag.beschreibung));
+    const toolbar = el('div', undefined, 'toolbar');
+    for (const [seite, version] of [['vorher', eintrag.vorherVersion], ['nachher', eintrag.nachherVersion]]) {
+      if (version === null) continue;
+      const button = el('button', `Stand ${seite} ansehen (Version ${version})`, 'secondary small'); button.type = 'button';
+      button.addEventListener('click', () => void sicherungAnsehen(eintrag, seite)); toolbar.append(button);
+    }
+    artikel.append(toolbar); liste.append(artikel);
+  }
+  if (eintraege.length > limit) {
+    const mehr = el('button', 'Weitere Änderungen anzeigen', 'secondary'); mehr.type = 'button';
+    mehr.addEventListener('click', () => renderVerlauf(limit + 50)); liste.append(mehr);
+  }
+};
+
+$('verlaufOeffnen').addEventListener('click', async () => {
+  if (state.busy) return;
+  $('sicherungsVorschau').hidden = true; inlineFehler('verlaufFehler');
+  $('verlaufDialog').showModal(); setBusy(true);
+  try {
+    state.verlauf = (await request('verlauf')).verlauf;
+    const filter = $('verlaufFilter'); filter.replaceChildren();
+    const alle = el('option', 'Alle Turniere'); alle.value = ''; filter.append(alle);
+    const turniere = new Map();
+    for (const eintrag of state.verlauf) if (!turniere.has(eintrag.turnierId)) turniere.set(eintrag.turnierId, eintrag.titel);
+    for (const [id, titel] of turniere) {
+      const vorhanden = state.turniere.some(turnier => turnier.id === id);
+      const option = el('option', `${titel}${vorhanden ? '' : ' (gelöscht)'}`); option.value = id; filter.append(option);
+    }
+    renderVerlauf();
+  } catch (error) { inlineFehler('verlaufFehler', error.message); }
+  finally { setBusy(false); }
+});
+$('verlaufFilter').addEventListener('change', () => { $('sicherungsVorschau').hidden = true; renderVerlauf(); });
+$('verlaufSchliessen').addEventListener('click', () => $('verlaufDialog').close());
+
 turnierFormZuruecksetzen();
 document.body.classList.toggle('beamer', state.beamer);
-if (state.beamer) setInterval(() => { if (!document.hidden) void load(); }, 15000);
+setInterval(() => { if ((state.beamer || !darfBearbeiten()) && !document.hidden && !$('leitungDialog').open) void load(); }, 15000);
 void load();

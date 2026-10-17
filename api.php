@@ -5,6 +5,7 @@ declare(strict_types=1);
 define('DATA_FILE', getenv('TURNIER_DATA_FILE') ?: __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'turniere.json');
 
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
 
 final class ApiError extends RuntimeException
 {
@@ -13,6 +14,11 @@ final class ApiError extends RuntimeException
         parent::__construct($message);
     }
 }
+
+require_once __DIR__ . '/schach.php';
+require_once __DIR__ . '/schach-auslosung.php';
+require_once __DIR__ . '/speicher.php';
+require_once __DIR__ . '/leitung.php';
 
 function respond(array $payload, int $status = 200): never
 {
@@ -34,30 +40,6 @@ function text(mixed $value, int $max, string $label): string
         throw new ApiError("Bitte $label eingeben (maximal $max Zeichen).");
     }
     return trim(preg_replace('/\s+/', ' ', $value));
-}
-
-function withStore(callable $callback, bool $write = false): mixed
-{
-    $dir = dirname(DATA_FILE);
-    if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) throw new ApiError('Datenordner konnte nicht angelegt werden.', 500);
-    $handle = fopen(DATA_FILE, 'c+');
-    if ($handle === false) throw new ApiError('Turnierdaten konnten nicht geöffnet werden.', 500);
-    try {
-        if (!flock($handle, $write ? LOCK_EX : LOCK_SH)) throw new ApiError('Turnierdaten sind gerade nicht verfügbar.', 503);
-        rewind($handle);
-        $raw = stream_get_contents($handle);
-        $turniere = $raw ? json_decode($raw, true, 512, JSON_THROW_ON_ERROR) : [];
-        if (!is_array($turniere)) $turniere = [];
-        $original = $turniere;
-        $result = $callback($turniere);
-        if ($write && $turniere !== $original) {
-            rewind($handle); ftruncate($handle, 0);
-            fwrite($handle, json_encode($turniere, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
-            fflush($handle);
-        }
-        flock($handle, LOCK_UN);
-        return $result;
-    } finally { fclose($handle); }
 }
 
 function spiel(int $runde, int $index, ?int $a, ?int $b): array
@@ -84,13 +66,19 @@ function berechnen(array $turnier): array
             }
             $begegnung['sieger'] = null;
             $begegnung['status'] = $bereit ? 'offen' : 'wartet';
+            if (istSchach($turnier) && isset($begegnung['altErgebnis'])) {
+                $begegnung['status'] = 'fertig';
+                $turnier['runden'][$r][$s] = $begegnung;
+                continue;
+            }
             $istFreilos = $turnier['modus'] === 'ko' && $begegnung['b'] === null
                 && ($r === 0 || (($turnier['koSchema'] ?? 'klassisch') === 'kompakt' && !isset($turnier['runden'][$r - 1][$s * 2 + 1])));
             if ($bereit && $istFreilos) {
                 $begegnung['sieger'] = $begegnung['a']; $begegnung['status'] = 'freilos';
             } elseif ($bereit && $begegnung['punkteA'] !== null && $begegnung['punkteB'] !== null) {
                 $begegnung['status'] = 'fertig';
-                $begegnung['sieger'] = $begegnung['punkteA'] > $begegnung['punkteB'] ? $begegnung['a'] : $begegnung['b'];
+                $begegnung['sieger'] = $begegnung['punkteA'] === $begegnung['punkteB'] ? null
+                    : ($begegnung['punkteA'] > $begegnung['punkteB'] ? $begegnung['a'] : $begegnung['b']);
             }
             $turnier['runden'][$r][$s] = $begegnung;
         }
@@ -98,36 +86,55 @@ function berechnen(array $turnier): array
     return $turnier;
 }
 
-function neuesTurnier(array $payload, int $id): array
+function teilnehmerPruefen(mixed $eingaben, string $sportart): array
 {
-    $titel = text($payload['titel'] ?? null, 100, 'einen Turniernamen');
-    $modus = $payload['modus'] ?? '';
-    if (!in_array($modus, ['jeder-gegen-jeden', 'ko'], true)) throw new ApiError('Unbekannter Turniermodus.');
-    $gewinnsaetze = $payload['gewinnsaetze'] ?? 2;
-    if (!is_int($gewinnsaetze) || !in_array($gewinnsaetze, [2, 3], true)) throw new ApiError('Bitte 2 oder 3 Gewinnsätze auswählen.');
-    $satzweise = $payload['satzweise'] ?? false;
-    if (!is_bool($satzweise)) throw new ApiError('Ungültige Ergebniserfassung.');
-    $eingaben = $payload['teilnehmer'] ?? null;
-    if (!is_array($eingaben) || count($eingaben) < 5 || count($eingaben) > 32) throw new ApiError('Ein Turnier benötigt 5 bis 32 Doppelpaare.');
+    $schach = $sportart === 'schach'; $minimum = $schach ? 2 : 5;
+    if (!is_array($eingaben) || count($eingaben) < $minimum || count($eingaben) > 32) {
+        throw new ApiError($schach ? 'Ein Schachturnier benötigt 2 bis 32 Spieler.' : 'Ein Turnier benötigt 5 bis 32 Doppelpaare.');
+    }
     $teilnehmer = []; $namen = [];
     foreach (array_values($eingaben) as $index => $eingabe) {
         $personen = $eingabe['spieler'] ?? null;
-        if (!is_array($personen) || count($personen) !== 2) throw new ApiError('Jedes Doppel benötigt genau zwei Spieler.');
+        if (!is_array($personen) || count($personen) !== ($schach ? 1 : 2)) {
+            throw new ApiError($schach ? 'Jeder Teilnehmer benötigt genau einen Spielernamen.' : 'Jedes Doppel benötigt genau zwei Spieler.');
+        }
         $spieler = [];
         foreach (array_values($personen) as $person) {
             $name = text($person['name'] ?? null, 100, 'für jeden Spieler einen Namen');
             $key = function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
-            if (isset($namen[$key])) throw new ApiError('Ein Spieler darf nur in einem Doppelpaar vorkommen. Gleichnamige Personen bitte unterscheidbar benennen.');
+            if (isset($namen[$key])) throw new ApiError('Ein Spielername darf im Turnier nur einmal vorkommen. Gleichnamige Personen bitte unterscheidbar benennen.');
             $namen[$key] = true; $spieler[] = ['name' => $name];
         }
-        $teilnehmer[] = ['id' => $index + 1, 'name' => $spieler[0]['name'] . ' / ' . $spieler[1]['name'], 'spieler' => $spieler];
+        $teilnehmer[] = ['id' => $index + 1, 'name' => implode(' / ', array_column($spieler, 'name')), 'spieler' => $spieler];
     }
+    return $teilnehmer;
+}
+
+function neuesTurnier(array $payload, int $id): array
+{
+    $titel = text($payload['titel'] ?? null, 100, 'einen Turniernamen');
+    $sportart = $payload['sportart'] ?? 'tischtennis';
+    if (!in_array($sportart, ['tischtennis', 'schach'], true)) throw new ApiError('Unbekannte Sportart.');
+    $schach = $sportart === 'schach';
+    $modus = $payload['modus'] ?? '';
+    if (!in_array($modus, ['jeder-gegen-jeden', 'ko'], true)) throw new ApiError('Unbekannter Turniermodus.');
+    if ($schach && $modus !== 'jeder-gegen-jeden') throw new ApiError('Schachturniere werden jeder gegen jeden gespielt.');
+    $durchgaenge = $payload['durchgaenge'] ?? 1;
+    if ($schach && (!is_int($durchgaenge) || !in_array($durchgaenge, [1, 2], true))) throw new ApiError('Bitte eine Partie oder Hin- und Rückspiel auswählen.');
+    $gewinnsaetze = $schach ? null : gewinnsatzanzahl($payload['gewinnsaetze'] ?? 2);
+    $satzweise = $schach ? false : ($payload['satzweise'] ?? false);
+    if (!is_bool($satzweise)) throw new ApiError('Ungültige Ergebniserfassung.');
+    $teilnehmer = teilnehmerPruefen($payload['teilnehmer'] ?? null, $sportart);
     $koSchema = $payload['koSchema'] ?? 'kompakt';
     if ($modus === 'ko' && !in_array($koSchema, ['kompakt', 'klassisch'], true)) throw new ApiError('Unbekanntes K.-o.-Schema.');
-    $turnier = ['id' => $id, 'version' => 1, 'titel' => $titel, 'modus' => $modus, 'gewinnsaetze' => $gewinnsaetze, 'satzweise' => $satzweise, 'teilnehmer' => $teilnehmer, 'runden' => [], 'anzahlTische' => tischanzahl($payload['anzahlTische'] ?? null)];
+    $turnier = ['id' => $id, 'version' => 1, 'titel' => $titel, 'sportart' => $sportart, 'modus' => $modus, 'teilnehmer' => $teilnehmer, 'runden' => [], 'anzahlTische' => tischanzahl($payload['anzahlTische'] ?? null)];
+    if (!$schach) { $turnier['gewinnsaetze'] = $gewinnsaetze; $turnier['satzweise'] = $satzweise; }
     if ($modus === 'ko') $turnier['koSchema'] = $koSchema;
     $ids = array_column($teilnehmer, 'id');
-    if ($modus === 'jeder-gegen-jeden') {
+    if ($schach) {
+        $turnier['durchgaenge'] = $durchgaenge;
+        $turnier['runden'] = schachSpielplan($ids, $durchgaenge);
+    } elseif ($modus === 'jeder-gegen-jeden') {
         if (count($ids) % 2) $ids[] = null;
         $anzahl = count($ids);
         for ($r = 0; $r < $anzahl - 1; $r++) {
@@ -193,6 +200,8 @@ function importiertesTurnier(array $payload, int $id): array
     }
     $basis = neuesTurnier([
         'titel' => $quelle['titel'] ?? null,
+        'sportart' => $quelle['sportart'] ?? 'tischtennis',
+        'durchgaenge' => $quelle['durchgaenge'] ?? 1,
         'modus' => $quelle['modus'] ?? null,
         'koSchema' => $quelle['koSchema'] ?? 'klassisch',
         'gewinnsaetze' => $quelle['gewinnsaetze'] ?? 3,
@@ -212,7 +221,13 @@ function importiertesTurnier(array $payload, int $id): array
                 throw new ApiError('Der gesicherte Spielplan wurde verändert.');
             }
             $saetze = $gesichert['saetze'] ?? [];
-            if (is_array($saetze) && $saetze) {
+            if (istSchach($basis)) {
+                if ($saetze !== []) throw new ApiError('Schachpartien haben keine Sätze.');
+                $a = $gesichert['punkteA'] ?? null; $b = $gesichert['punkteB'] ?? null;
+                if ($a !== null || $b !== null) schachErgebnis($a, $b);
+                $basis['runden'][$r][$s]['punkteA'] = $a;
+                $basis['runden'][$r][$s]['punkteB'] = $b;
+            } elseif (is_array($saetze) && $saetze) {
                 [$a, $b] = satzErgebnis($saetze, $basis['gewinnsaetze']);
                 $basis['runden'][$r][$s]['saetze'] = $saetze;
                 $basis['runden'][$r][$s]['punkteA'] = $a;
@@ -225,13 +240,16 @@ function importiertesTurnier(array $payload, int $id): array
             }
         }
     }
-    return berechnen($basis);
+    if (array_key_exists('altErgebnisse', $quelle)) $basis = schachAltErgebnisse($basis, $quelle['altErgebnisse']);
+    $basis = berechnen($basis);
+    if (istSchach($basis) && array_key_exists('spieltage', $quelle)) $basis['spieltage'] = schachSpieltagePruefen($basis, $quelle['spieltage']);
+    return $basis;
 }
 
 function tischanzahl(mixed $value): ?int
 {
     if ($value === null) return null;
-    if (!is_int($value) || $value < 1 || $value > 32) throw new ApiError('Bitte 1 bis 32 Tische angeben oder die Anzahl offen lassen.');
+    if (!is_int($value) || $value < 1 || $value > 32) throw new ApiError('Bitte eine Anzahl von 1 bis 32 angeben oder das Feld leer lassen.');
     return $value;
 }
 
@@ -272,8 +290,15 @@ function turnierErgebnis(array $turnier, string $spielId, array $payload): array
     $gefunden = false;
     foreach ($turnier['runden'] as $r => $runde) foreach ($runde as $s => $begegnung) {
         if ($begegnung['id'] !== $spielId) continue;
+        if (isset($begegnung['altErgebnis'])) throw new ApiError('Für diese Paarung ist nur das gemeinsame historische Ergebnis bekannt. Einzelpartien können nicht überschrieben werden.');
         if (in_array($begegnung['status'], ['wartet', 'freilos'], true)) throw new ApiError('Dieses Spiel kann noch nicht gespielt werden oder ist ein Freilos.');
-        if (array_key_exists('saetze', $payload)) {
+        if (istSchach($turnier)) {
+            if (array_key_exists('saetze', $payload)) throw new ApiError('Schachpartien haben keine Sätze.');
+            $a = $payload['punkteA'] ?? null; $b = $payload['punkteB'] ?? null;
+            if ($a !== null || $b !== null) schachErgebnis($a, $b);
+            elseif (!array_key_exists('punkteA', $payload) || !array_key_exists('punkteB', $payload)) throw new ApiError('Bitte ein Schachergebnis auswählen.');
+            $turnier['runden'][$r][$s]['saetze'] = [];
+        } elseif (array_key_exists('saetze', $payload)) {
             if (!is_array($payload['saetze'])) throw new ApiError('Bitte Sätze eingeben.');
             [$a, $b] = satzErgebnis($payload['saetze'], $gewinnsaetze);
             $turnier['runden'][$r][$s]['saetze'] = $payload['saetze'];
@@ -305,16 +330,59 @@ if (defined('TURNIER_API_NO_DISPATCH') && TURNIER_API_NO_DISPATCH) return;
 try {
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     $action = $_GET['action'] ?? '';
-    if ($method === 'GET' && $action === '') {
-        respond(withStore(function (array &$turniere): array {
-            ungespielteKoTurniereUmstellen($turniere);
-            return ['turniere' => $turniere];
+    if ($method === 'GET' && $action === 'leitung') respond(['leitung' => leitungInfo()]);
+    if ($method === 'POST' && $action === 'anmelden') respond(['leitung' => leitungAnmelden(body()['pin'] ?? null)]);
+    if ($method === 'POST' && $action === 'abmelden') respond(['leitung' => leitungAbmelden()]);
+    if ($method === 'POST' && $action === 'pin') respond(['leitung' => leitungPinAendern(body())]);
+    if ($method !== 'GET') leitungPruefen(true);
+    if ($method === 'POST' && in_array($action, ['auslosen', 'spieltag-beenden'], true)) {
+        $payload = body(); $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT);
+        respond(withStore(function (array &$turniere) use ($payload, $id, $action): array {
+            $index = turnierIndex($turniere, (int) $id); pruefeVersion($turniere[$index], $payload);
+            $turniere[$index] = $action === 'auslosen' ? schachAuslosen($turniere[$index], $payload) : schachSpieltagBeenden($turniere[$index]);
+            $turniere[$index]['version']++;
+            return ['turnier' => $turniere[$index]];
         }, true));
+    }
+    if ($method === 'GET' && $action === 'verlauf') {
+        leitungPruefen();
+        respond(withStore(fn(array $turniere, array $verlauf): array => ['verlauf' => array_reverse($verlauf)]));
+    }
+    if ($method === 'GET' && $action === 'stand') {
+        leitungPruefen();
+        respond(withStore(function (array $turniere, array $verlauf): array {
+            $result = sicherungsStand($verlauf, $_GET['sicherung'] ?? null, $_GET['seite'] ?? null);
+            $aktuell = array_column($turniere, null, 'id')[$result['turnier']['id']] ?? null;
+            return $result + ['aktuelleVersion' => $aktuell['version'] ?? null];
+        }));
+    }
+    if ($method === 'POST' && $action === 'wiederherstellen') {
+        $payload = body();
+        respond(withStore(function (array &$turniere, array $verlauf) use ($payload): array {
+            $stand = sicherungsStand($verlauf, $payload['sicherung'] ?? null, $payload['seite'] ?? null)['turnier'];
+            $aktuell = array_column($turniere, null, 'id')[$stand['id']] ?? null;
+            if (!array_key_exists('version', $payload) || $payload['version'] !== ($aktuell['version'] ?? null)) throw new ApiError('Das Turnier wurde inzwischen geändert. Bitte die Vorschau erneut öffnen.', 409);
+            $versionen = [0, $stand['version'], $aktuell['version'] ?? 0];
+            foreach ($verlauf as $eintrag) if ($eintrag['turnierId'] === $stand['id']) {
+                $versionen[] = $eintrag['vorherVersion'] ?? 0; $versionen[] = $eintrag['nachherVersion'] ?? 0;
+            }
+            $stand['version'] = max($versionen) + 1;
+            $turniere = array_values(array_filter($turniere, fn(array $turnier): bool => $turnier['id'] !== $stand['id']));
+            array_unshift($turniere, $stand);
+            return ['turnier' => $stand];
+        }, true));
+    }
+    if ($method === 'GET' && $action === '') {
+        $leitung = leitungInfo();
+        respond(withStore(function (array &$turniere) use ($leitung): array {
+            if ($leitung['angemeldet']) ungespielteKoTurniereUmstellen($turniere);
+            return ['turniere' => $turniere, 'leitung' => $leitung];
+        }, $leitung['angemeldet']));
     }
     if ($method === 'POST' && $action === 'anlegen') {
         $payload = body();
-        $result = withStore(function (array &$turniere) use ($payload): array {
-            $id = $turniere ? max(array_column($turniere, 'id')) + 1 : 1;
+        $result = withStore(function (array &$turniere, array $verlauf) use ($payload): array {
+            $id = naechsteTurnierId($turniere, $verlauf);
             $turnier = neuesTurnier($payload, $id); array_unshift($turniere, $turnier);
             return ['turnier' => $turnier];
         }, true);
@@ -322,8 +390,8 @@ try {
     }
     if ($method === 'POST' && $action === 'importieren') {
         $payload = body();
-        $result = withStore(function (array &$turniere) use ($payload): array {
-            $id = $turniere ? max(array_column($turniere, 'id')) + 1 : 1;
+        $result = withStore(function (array &$turniere, array $verlauf) use ($payload): array {
+            $id = naechsteTurnierId($turniere, $verlauf);
             $turnier = importiertesTurnier($payload, $id); array_unshift($turniere, $turnier);
             return ['turnier' => $turnier];
         }, true);
@@ -344,19 +412,21 @@ try {
         $result = withStore(function (array &$turniere) use ($payload, $id): array {
             $index = turnierIndex($turniere, (int) $id); pruefeVersion($turniere[$index], $payload);
             $bisher = $turniere[$index];
-            $geprueft = neuesTurnier(['koSchema' => $bisher['koSchema'] ?? 'klassisch'] + $payload, $bisher['id']);
-            $begonnen = false;
+            $geprueft = neuesTurnier(['sportart' => $payload['sportart'] ?? $bisher['sportart'] ?? 'tischtennis', 'durchgaenge' => $payload['durchgaenge'] ?? $bisher['durchgaenge'] ?? 1, 'koSchema' => $bisher['koSchema'] ?? 'klassisch'] + $payload, $bisher['id']);
+            $begonnen = !empty($bisher['spieltage']) || !empty($bisher['altErgebnisse']);
             foreach ($bisher['runden'] as $runde) foreach ($runde as $spiel) {
                 if (($spiel['punkteA'] ?? null) !== null || ($spiel['punkteB'] ?? null) !== null) $begonnen = true;
             }
             if ($begonnen) {
-                if ($geprueft['modus'] !== $bisher['modus']
-                    || $geprueft['gewinnsaetze'] !== ($bisher['gewinnsaetze'] ?? 3)
+                if (($geprueft['sportart'] ?? 'tischtennis') !== ($bisher['sportart'] ?? 'tischtennis')
+                    || $geprueft['modus'] !== $bisher['modus']
+                    || (istSchach($bisher) && ($geprueft['durchgaenge'] ?? 1) !== ($bisher['durchgaenge'] ?? 1))
+                    || (!istSchach($bisher) && $geprueft['gewinnsaetze'] !== ($bisher['gewinnsaetze'] ?? 3))
                     || count($geprueft['teilnehmer']) !== count($bisher['teilnehmer'])) {
-                    throw new ApiError('Turniermodus, Spielwertung und Anzahl der Doppelpaare können nach dem ersten Ergebnis nicht mehr geändert werden.');
+                    throw new ApiError('Sportart, Turniermodus, Spielwertung und Teilnehmerzahl können nach dem ersten Ergebnis oder der ersten Auslosung nicht mehr geändert werden.');
                 }
                 $bisher['titel'] = $geprueft['titel'];
-                $bisher['satzweise'] = $geprueft['satzweise'];
+                if (!istSchach($bisher)) $bisher['satzweise'] = $geprueft['satzweise'];
                 $bisher['anzahlTische'] = $geprueft['anzahlTische'];
                 $bisher['teilnehmer'] = $geprueft['teilnehmer'];
                 $bisher['version']++;
@@ -384,18 +454,21 @@ try {
         $result = withStore(function (array &$turniere) use ($payload, $id): array {
             $index = turnierIndex($turniere, (int) $id); pruefeVersion($turniere[$index], $payload);
             $eingaben = $payload['teilnehmer'] ?? null;
-            if (!is_array($eingaben) || count($eingaben) < 5 || count($eingaben) > 32) {
-                throw new ApiError('Bitte für jedes Doppelpaar beide Spielernamen angeben.');
-            }
+            $sportart = $turniere[$index]['sportart'] ?? 'tischtennis';
+            $geprueft = teilnehmerPruefen($eingaben, $sportart);
             if (count($eingaben) !== count($turniere[$index]['teilnehmer'])) {
+                if (!empty($turniere[$index]['altErgebnisse'])) throw new ApiError('Die Teilnehmerzahl kann nach historischen Ergebnissen nicht geändert werden.');
+                if (!empty($turniere[$index]['spieltage'])) throw new ApiError('Die Teilnehmerzahl kann nach der ersten Auslosung nicht mehr geändert werden.');
                 foreach ($turniere[$index]['runden'] as $runde) foreach ($runde as $spiel) {
                     if (($spiel['punkteA'] ?? null) !== null || ($spiel['punkteB'] ?? null) !== null) {
-                        throw new ApiError('Die Anzahl der Doppelpaare kann nur vor dem ersten eingetragenen Ergebnis geändert werden.');
+                        throw new ApiError('Die Teilnehmerzahl kann nur vor dem ersten eingetragenen Ergebnis geändert werden.');
                     }
                 }
                 $bisher = $turniere[$index];
                 $neu = neuesTurnier([
                     'titel' => $bisher['titel'], 'modus' => $bisher['modus'],
+                    'sportart' => $sportart,
+                    'durchgaenge' => $bisher['durchgaenge'] ?? 1,
                     'koSchema' => $bisher['koSchema'] ?? 'klassisch',
                     'gewinnsaetze' => $bisher['gewinnsaetze'] ?? 3, 'satzweise' => $bisher['satzweise'] ?? false,
                     'teilnehmer' => array_map(fn(array $eingabe): array => ['spieler' => $eingabe['spieler'] ?? null], $eingaben),
@@ -407,23 +480,20 @@ try {
             }
             $nachId = [];
             foreach ($eingaben as $eingabe) {
-                $paarId = $eingabe['id'] ?? null;
-                if (!is_int($paarId) || isset($nachId[$paarId])) throw new ApiError('Ungültiges Doppelpaar.');
-                $nachId[$paarId] = $eingabe;
+                $teilnehmerId = $eingabe['id'] ?? null;
+                if (!is_int($teilnehmerId) || isset($nachId[$teilnehmerId])) throw new ApiError('Ungültiger Teilnehmer.');
+                $nachId[$teilnehmerId] = $eingabe;
             }
-            $namen = [];
+            $sortiert = [];
+            foreach ($turniere[$index]['teilnehmer'] as $teilnehmer) {
+                if (!isset($nachId[$teilnehmer['id']])) throw new ApiError('Ungültiger Teilnehmer.');
+                $sortiert[] = $nachId[$teilnehmer['id']];
+            }
+            $geprueft = teilnehmerPruefen($sortiert, $sportart);
+            $position = 0;
             foreach ($turniere[$index]['teilnehmer'] as &$teilnehmer) {
-                $personen = $nachId[$teilnehmer['id']]['spieler'] ?? null;
-                if (!is_array($personen) || count($personen) !== 2) throw new ApiError('Jedes Doppel benötigt genau zwei Spieler.');
-                $spieler = [];
-                foreach (array_values($personen) as $person) {
-                    $name = text($person['name'] ?? null, 100, 'für jeden Spieler einen Namen');
-                    $key = function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
-                    if (isset($namen[$key])) throw new ApiError('Ein Spielername darf im Turnier nur einmal vorkommen.');
-                    $namen[$key] = true; $spieler[] = ['name' => $name];
-                }
-                $teilnehmer['spieler'] = $spieler;
-                $teilnehmer['name'] = $spieler[0]['name'] . ' / ' . $spieler[1]['name'];
+                $teilnehmer['spieler'] = $geprueft[$position]['spieler'];
+                $teilnehmer['name'] = $geprueft[$position++]['name'];
             }
             unset($teilnehmer);
             $turniere[$index]['version']++;
@@ -444,6 +514,7 @@ try {
         $payload = body(); $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT);
         $result = withStore(function (array &$turniere) use ($payload, $id): array {
             $index = turnierIndex($turniere, (int) $id); pruefeVersion($turniere[$index], $payload);
+            if (istSchach($turniere[$index])) throw new ApiError('Schachpartien werden mit 1, ½ oder 0 Punkten gewertet.');
             foreach ($turniere[$index]['runden'] as $runde) foreach ($runde as $spiel) {
                 if (($spiel['punkteA'] ?? null) !== null || ($spiel['punkteB'] ?? null) !== null) {
                     throw new ApiError('Die Spielwertung kann nur vor dem ersten eingetragenen Ergebnis geändert werden.');
@@ -458,6 +529,7 @@ try {
         $payload = body(); $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT);
         $result = withStore(function (array &$turniere) use ($payload, $id): array {
             $index = turnierIndex($turniere, (int) $id); pruefeVersion($turniere[$index], $payload);
+            if (istSchach($turniere[$index])) throw new ApiError('Schachpartien haben keine Satzwertung.');
             if (!is_bool($payload['satzweise'] ?? null)) throw new ApiError('Ungültige Ergebniserfassung.');
             $turniere[$index]['satzweise'] = $payload['satzweise'];
             $turniere[$index]['version']++; return ['turnier' => $turniere[$index]];

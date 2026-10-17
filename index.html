@@ -6,38 +6,83 @@
   <meta name="theme-color" content="#0f766e">
   <title>Turnierverwaltung</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230f766e'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='white'%3E%E2%86%94%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=18">
 </head>
-<body>
+<body class="zuschauer">
   <main class="app">
     <header class="header">
       <div class="brand">
         <img class="logo" src="reinickendorf-wappen.svg" alt="Bezirkssymbol Reinickendorf">
         <div>
           <h1>Turnierverwaltung</h1>
-          <p>Tischtennis-Doppelturniere</p>
         </div>
       </div>
       <div class="toolbar">
         <label for="turnierAuswahl">Turnier</label>
         <select id="turnierAuswahl" aria-label="Turnier auswählen"></select>
-        <button id="turnierBearbeiten" class="secondary management-only" type="button">Turnier ändern</button>
-        <button id="turnierLoeschen" class="danger management-only" type="button">Turnier löschen</button>
+        <button id="turnierBearbeiten" class="secondary management-only leitung-only" type="button">Turnier ändern</button>
+        <button id="turnierLoeschen" class="danger management-only leitung-only" type="button">Turnier löschen</button>
         <button id="beamerAnsicht" class="secondary management-only" type="button">Beameransicht</button>
         <button id="drucken" class="secondary management-only" type="button">Drucken</button>
         <button id="siegerurkunden" class="secondary management-only" type="button">Urkunden (Platz 1–3)</button>
         <button id="exportieren" class="secondary management-only" type="button">Exportieren</button>
-        <button id="importieren" class="secondary management-only" type="button">Importieren</button>
-        <button id="neuesTurnier" class="management-only neues-turnier" type="button">Neues Turnier anlegen</button>
+        <button id="importieren" class="secondary management-only leitung-only" type="button">Importieren</button>
+        <button id="verlaufOeffnen" class="secondary management-only leitung-only" type="button">Sicherungen &amp; Verlauf</button>
+        <button id="neuesTurnier" class="management-only leitung-only neues-turnier" type="button">Neues Turnier anlegen</button>
         <input id="importDatei" type="file" accept="application/json,.json" hidden>
+      </div>
+      <div class="toolbar management-only zugang">
+        <span id="leitungsStatus" class="muted" role="status">Zuschaueransicht</span>
+        <button id="leitungAnmelden" class="secondary" type="button">Turnierleitung anmelden</button>
+        <button id="pinAendern" class="secondary leitung-only" type="button">PIN ändern</button>
+        <button id="leitungAbmelden" class="secondary leitung-only" type="button">Abmelden</button>
       </div>
     </header>
 
     <div id="meldung" class="meldung" role="alert" hidden></div>
 
+    <dialog id="leitungDialog" aria-labelledby="leitungTitel">
+      <form id="leitungForm">
+        <h2 id="leitungTitel">Turnierleitung anmelden</h2>
+        <p class="hint">Mit der Leitungs-PIN kannst du Turniere und Ergebnisse bearbeiten.</p>
+        <label>Leitungs-PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="current-password" required></label>
+        <p id="leitungFehler" class="fehler" role="alert" hidden></p>
+        <div class="dialog-aktionen"><button id="leitungAbbrechen" class="secondary" type="button">Abbrechen</button><button type="submit">Anmelden</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="pinDialog" aria-labelledby="pinTitel">
+      <form id="pinForm">
+        <h2 id="pinTitel">Leitungs-PIN ändern</h2>
+        <label>Bisherige PIN<input name="aktuellePin" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="current-password" required></label>
+        <label>Neue PIN<input name="neuePin" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="new-password" required></label>
+        <label>Neue PIN wiederholen<input name="wiederholung" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="new-password" required></label>
+        <p class="hint">Die PIN gilt für Schach und Tischtennis. Andere angemeldete Geräte müssen sich danach erneut anmelden.</p>
+        <p id="pinFehler" class="fehler" role="alert" hidden></p>
+        <div class="dialog-aktionen"><button id="pinAbbrechen" class="secondary" type="button">Abbrechen</button><button type="submit">PIN speichern</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="verlaufDialog" class="verlauf-dialog" aria-labelledby="verlaufTitel">
+      <div class="verlauf-inhalt">
+        <div class="toolbar turnier-kopf"><h2 id="verlaufTitel">Sicherungen &amp; Verlauf</h2><button id="verlaufSchliessen" class="secondary" type="button">Schließen</button></div>
+        <p class="hint">Jede Änderung wird automatisch gesichert. Du kannst frühere Stände ansehen und wiederherstellen, auch von gelöschten Turnieren.</p>
+        <label for="verlaufFilter">Turnier</label><select id="verlaufFilter"><option value="">Alle Turniere</option></select>
+        <p id="verlaufFehler" class="fehler" role="alert" hidden></p>
+        <div id="sicherungsVorschau" hidden></div>
+        <div id="verlaufListe" aria-live="polite"></div>
+      </div>
+    </dialog>
+
     <dialog id="turnierDialog" class="turnier-dialog" aria-labelledby="turnierFormTitel">
       <form id="turnierForm" class="turnier-form">
         <h2 id="turnierFormTitel" class="wide">Neues Turnier anlegen</h2>
+        <label>Sportart
+          <select name="sportart">
+            <option value="tischtennis">Tischtennis-Doppel</option>
+            <option value="schach">Schach</option>
+          </select>
+        </label>
         <label>Turniername
           <input name="titel" required maxlength="100" placeholder="z. B. Herbstturnier">
         </label>
@@ -47,23 +92,27 @@
             <option value="ko">K.-o.-System</option>
           </select>
         </label>
-        <label>Spielwertung
+        <label id="spielwertungFeld">Spielwertung
           <select name="gewinnsaetze">
             <option value="2">2 Gewinnsätze (Best of 3)</option>
             <option value="3">3 Gewinnsätze (Best of 5)</option>
           </select>
         </label>
-        <label>Ergebniserfassung
+        <label id="erfassungsartFeld">Ergebniserfassung
           <select name="satzweise">
             <option value="0">Nur Satzergebnis (z. B. 2:1)</option>
             <option value="1">Sätze einzeln erfassen</option>
           </select>
         </label>
-        <label>Verfügbare Tische (optional)
+        <label><span id="tischanzahlLabel">Verfügbare Tische (optional)</span>
           <input name="anzahlTische" type="number" min="1" max="32" placeholder="offen">
         </label>
+        <label id="schachDurchgaengeFeld" hidden>Schachbegegnungen
+          <select name="durchgaenge"><option value="2">Hin- und Rückspiel (Farbenwechsel)</option><option value="1">Eine Partie pro Paarung</option></select>
+        </label>
+        <p id="schachHinweis" class="hint wide" hidden>Sieg: 1 Punkt · Remis: ½ Punkt · Niederlage: 0 Punkte. Jeder gegen jeden. Anwesende Spieler können an jedem Spieltag neu ausgelost werden.</p>
         <div class="wide">
-          <p class="hint">Je Doppelpaar die Namen der beiden Spieler eingeben. Möglich sind 5 bis 32 Doppelpaare.</p>
+          <p id="teilnehmerHinweis" class="hint">Je Doppelpaar die Namen der beiden Spieler eingeben. Möglich sind 5 bis 32 Doppelpaare.</p>
           <div id="paare" class="paare"></div>
           <div class="toolbar actions">
             <button id="paarHinzufuegen" class="secondary" type="button">Paar hinzufügen</button>
@@ -96,6 +145,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=34"></script>
+  <script type="module" src="app.js?v=40"></script>
 </body>
 </html>

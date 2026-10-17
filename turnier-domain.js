@@ -1,9 +1,12 @@
+import { istSchach, schachTabelle } from './schach-domain.js?v=5';
+
 export const turnierFortschritt = turnier => {
   const spiele = turnier.runden.flat().filter(spiel => spiel.status !== 'freilos');
   return { fertig: spiele.filter(spiel => spiel.status === 'fertig').length, gesamt: spiele.length };
 };
 
 export const turnierTabelle = turnier => {
+  if (istSchach(turnier)) return schachTabelle(turnier);
   const zeilen = new Map(turnier.teilnehmer.map(teilnehmer => [teilnehmer.id, {
     ...teilnehmer, spiele: 0, siege: 0, niederlagen: 0, fuer: 0, gegen: 0,
   }]));

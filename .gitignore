@@ -1,2 +1,6 @@
 data/*.json
+data/*.lock
+data/.turnier-*
+data/sicherungen/
+data/sitzungen/
 
