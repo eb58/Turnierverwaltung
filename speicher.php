@@ -17,9 +17,22 @@ function jsonDatei(string $pfad, mixed $standard = null): mixed
     return json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
 }
 
+// Eingerücktes JSON, bei dem kleine Objekte und Listen auf einer Zeile bleiben.
+function jsonKompakt(mixed $wert, string $einzug = ''): string
+{
+    $flags = JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR;
+    $zeile = json_encode($wert, $flags);
+    if (!is_array($wert) || $wert === [] || strlen($einzug) + strlen($zeile) <= 160) return $zeile;
+    $liste = array_is_list($wert); $innen = $einzug . '    '; $teile = [];
+    foreach ($wert as $schluessel => $eintrag) {
+        $teile[] = $innen . ($liste ? '' : json_encode((string) $schluessel, $flags) . ': ') . jsonKompakt($eintrag, $innen);
+    }
+    return ($liste ? '[' : '{') . "\n" . implode(",\n", $teile) . "\n" . $einzug . ($liste ? ']' : '}');
+}
+
 function jsonAtomarSpeichern(string $pfad, array $daten): void
 {
-    $json = json_encode($daten, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+    $json = jsonKompakt($daten);
     $temp = @tempnam(dirname($pfad), '.turnier-');
     if ($temp === false) throw new ApiError('Die Sicherung konnte nicht vorbereitet werden.', 500);
     try {
@@ -70,6 +83,31 @@ function aenderungsBeschreibung(?array $vorher, ?array $nachher, string $aktion)
     };
 }
 
+// In Dateien steht nur, was sich nicht ableiten lässt: bei Einzelspielern der Name, bei Doppeln die Spieler.
+function turnierSpeicherform(?array $turnier): ?array
+{
+    if ($turnier === null || !is_array($turnier['teilnehmer'] ?? null)) return $turnier;
+    $turnier['teilnehmer'] = array_map(function (mixed $teilnehmer): mixed {
+        if (!is_array($teilnehmer) || !is_array($teilnehmer['spieler'] ?? null)) return $teilnehmer;
+        if ($teilnehmer['spieler'] === [['name' => $teilnehmer['name'] ?? null]]) { unset($teilnehmer['spieler']); return $teilnehmer; }
+        if (($teilnehmer['name'] ?? null) === implode(' / ', array_column($teilnehmer['spieler'], 'name'))) unset($teilnehmer['name']);
+        return $teilnehmer;
+    }, $turnier['teilnehmer']);
+    return $turnier;
+}
+
+function turnierAusSpeicherform(?array $turnier): ?array
+{
+    if ($turnier === null || !is_array($turnier['teilnehmer'] ?? null)) return $turnier;
+    $turnier['teilnehmer'] = array_map(function (mixed $teilnehmer): mixed {
+        if (!is_array($teilnehmer)) return $teilnehmer;
+        if (!isset($teilnehmer['spieler']) && is_string($teilnehmer['name'] ?? null)) $teilnehmer['spieler'] = [['name' => $teilnehmer['name']]];
+        if (!isset($teilnehmer['name']) && is_array($teilnehmer['spieler'] ?? null)) $teilnehmer['name'] = implode(' / ', array_column($teilnehmer['spieler'], 'name'));
+        return ['id' => $teilnehmer['id'] ?? null, 'name' => $teilnehmer['name'] ?? null, 'spieler' => $teilnehmer['spieler'] ?? null] + $teilnehmer;
+    }, $turnier['teilnehmer']);
+    return $turnier;
+}
+
 function withStore(callable $callback, bool $write = false): mixed
 {
     datenOrdner();
@@ -80,6 +118,7 @@ function withStore(callable $callback, bool $write = false): mixed
         elseif (($dokument['format'] ?? '') === 'turnierverwaltung-store' && is_array($dokument['turniere'] ?? null) && is_array($dokument['verlauf'] ?? null)) {
             $turniere = $dokument['turniere']; $verlauf = $dokument['verlauf'];
         } else throw new ApiError('Unbekanntes Datenformat. Die Datei wird nicht überschrieben.', 500);
+        $turniere = array_map(fn(mixed $turnier): mixed => is_array($turnier) ? turnierAusSpeicherform($turnier) : $turnier, $turniere);
         $original = $turniere;
         $result = $callback($turniere, $verlauf);
         if ($write && $turniere !== $original) {
@@ -92,11 +131,11 @@ function withStore(callable $callback, bool $write = false): mixed
                     'titel' => ($nachher ?? $vorher)['titel'], 'aktion' => $aktion,
                     'beschreibung' => aenderungsBeschreibung($vorher, $nachher, $aktion),
                     'vorherVersion' => $vorher['version'] ?? null, 'nachherVersion' => $nachher['version'] ?? null];
-                jsonAtomarSpeichern(sicherungsOrdner() . '/' . $eintrag['id'] . '.json', ['eintrag' => $eintrag, 'vorher' => $vorher, 'nachher' => $nachher]);
+                jsonAtomarSpeichern(sicherungsOrdner() . '/' . $eintrag['id'] . '.json', ['eintrag' => $eintrag, 'vorher' => turnierSpeicherform($vorher), 'nachher' => turnierSpeicherform($nachher)]);
                 $verlauf[] = $eintrag;
             }
             // Erst nachdem die Sicherungen vollständig geschrieben sind, wird der aktuelle Stand ersetzt.
-            jsonAtomarSpeichern(DATA_FILE, ['format' => 'turnierverwaltung-store', 'version' => 1, 'turniere' => $turniere, 'verlauf' => $verlauf]);
+            jsonAtomarSpeichern(DATA_FILE, ['format' => 'turnierverwaltung-store', 'version' => 1, 'turniere' => array_map(fn(mixed $turnier): mixed => is_array($turnier) ? turnierSpeicherform($turnier) : $turnier, $turniere), 'verlauf' => $verlauf]);
         }
         return $result;
     }, $write);
@@ -115,7 +154,7 @@ function sicherungsStand(array $verlauf, mixed $id, mixed $seite): array
         $sicherung = jsonDatei(sicherungsOrdner() . '/' . $id . '.json');
         $stand = $sicherung[$seite] ?? null;
         if (!is_array($stand)) throw new ApiError('Zu diesem Zeitpunkt war das Turnier nicht vorhanden.', 404);
-        return ['turnier' => $stand, 'eintrag' => $eintrag];
+        return ['turnier' => turnierAusSpeicherform($stand), 'eintrag' => $eintrag];
     }
     throw new ApiError('Sicherung nicht gefunden.', 404);
 }

@@ -309,7 +309,8 @@ test('Zu viele falsche PINs werden auch mit neuen Sitzungen gebremst', async () 
 test('Alte Turnierlisten werden verlustfrei übernommen und beschädigte Daten nicht überschrieben', async () => {
   const datei = join(tempOrdner, 'turniere.json');
   const vorher = await readFile(datei, 'utf8');
-  const alt = JSON.parse(vorher).turniere;
+  // Ausführliches Altformat mit name und spieler an jedem Teilnehmer
+  const alt = (await anfrage()).payload.turniere;
   const tischtennis = alt.find(turnier => turnier.sportart === 'tischtennis');
   delete tischtennis.sportart;
   await writeFile(datei, JSON.stringify(alt));
@@ -321,6 +322,9 @@ test('Alte Turnierlisten werden verlustfrei übernommen und beschädigte Daten n
     assert.equal(neu.turniere.length, alt.length);
     assert.deepEqual(neu.turniere.find(turnier => turnier.sportart === 'schach').runden, alt.find(turnier => turnier.sportart === 'schach').runden);
     assert.equal(neu.verlauf.length, 1);
+    const gespeichert = neu.turniere.find(turnier => turnier.sportart === 'schach').teilnehmer[0];
+    assert.deepEqual(Object.keys(gespeichert).sort(), ['id', 'name'], 'Einzelspieler werden ohne redundante Spielerliste gespeichert.');
+    assert.ok(neu.turniere.find(turnier => turnier.id === tischtennis.id).teilnehmer.every(paar => paar.spieler.length === 2 && !('name' in paar)));
     await writeFile(datei, '{kaputt');
     assert.equal((await anfrage()).status, 500);
     assert.equal((await anfrage(`umbenennen&turnier=${tischtennis.id}`, 'PUT', { version: tischtennis.version, titel: 'Nicht schreiben' })).status, 500);

@@ -44,6 +44,8 @@ export const renderSchachHistorie = (turnier, el) => {
   return section;
 };
 
+const auslosungOffen = new Map();
+
 export const renderSchachSpieltag = (turnier, hilfe) => {
   const { el, bearbeiten, busy, setBusy, request, aktualisieren, meldung, bestaetigen, ergebnisForm, paarungsText, anmelden } = hilfe;
   const letzter = turnier.spieltage?.at(-1), aktiv = letzter?.status === 'aktiv';
@@ -60,39 +62,39 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
       button.addEventListener('click', anmelden); section.append(button);
     }
   }
-  if (bearbeiten) {
+  if (bearbeiten && begonnen) section.append(el('p', 'Für diesen Spieltag wurden bereits Ergebnisse erfasst. Neu auslosen ist nicht mehr möglich; für eine neue Auslosung zuerst den Spieltag beenden.', 'hint management-only'));
+  if (bearbeiten && !begonnen) {
     const form = el('form', undefined, 'auslosung-form management-only');
     const heute = new Date();
     const datumLabel = el('label', 'Datum des Spieltags'), datum = el('input');
     datum.type = 'date'; datum.name = 'datum'; datum.required = true;
     datum.value = aktiv ? letzter.datum : `${heute.getFullYear()}-${String(heute.getMonth() + 1).padStart(2, '0')}-${String(heute.getDate()).padStart(2, '0')}`;
-    datum.disabled = begonnen; datum.dataset.gesperrt = String(begonnen); datumLabel.append(datum);
+    datumLabel.append(datum);
     const auswahl = el('fieldset', undefined, 'anwesenheit'); auswahl.append(el('legend', 'Wer ist heute anwesend?'));
     const checkboxen = [];
     for (const person of turnier.teilnehmer) {
       const label = el('label', undefined, 'anwesenheit-chip'), input = el('input'); input.type = 'checkbox'; input.name = 'anwesend'; input.value = person.id;
-      input.checked = aktiv && letzter.anwesend.includes(person.id); input.disabled = begonnen; input.dataset.gesperrt = String(begonnen);
+      input.checked = aktiv && letzter.anwesend.includes(person.id);
       label.append(input, el('span', person.name)); auswahl.append(label); checkboxen.push(input);
     }
     const anzahl = el('p', undefined, 'hint'), toolbar = el('div', undefined, 'toolbar');
     const alle = el('button', 'Alle auswählen', 'secondary small'), keine = el('button', 'Auswahl aufheben', 'secondary small');
     const los = el('button', aktiv ? 'Neu auslosen' : 'Paarungen auslosen'); los.type = 'submit';
-    for (const button of [alle, keine]) { button.type = 'button'; button.dataset.gesperrt = String(begonnen); button.disabled = begonnen; }
+    for (const button of [alle, keine]) button.type = 'button';
     const zaehlen = () => {
       const n = checkboxen.filter(input => input.checked).length;
       anzahl.textContent = `${n} Spieler anwesend${n >= 2 ? n % 2 ? ' · eine Dreiergruppe, übrige Spieler in Paaren' : ' · alle Spieler in Paaren' : ' · mindestens zwei auswählen'}`;
-      los.dataset.gesperrt = String(begonnen || n < 2); los.disabled = busy() || begonnen || n < 2;
+      los.dataset.gesperrt = String(n < 2); los.disabled = busy() || n < 2;
     };
     checkboxen.forEach(input => input.addEventListener('change', zaehlen));
     alle.addEventListener('click', () => { checkboxen.forEach(input => input.checked = true); zaehlen(); });
     keine.addEventListener('click', () => { checkboxen.forEach(input => input.checked = false); zaehlen(); });
     toolbar.append(alle, keine, los);
     form.append(datumLabel, auswahl, anzahl, el('p', 'Normale Paare spielen die noch offenen Partien gegeneinander. In der Dreiergruppe spielt die zuerst genannte Person nacheinander je eine Partie gegen die beiden anderen.', 'hint'), toolbar);
-    if (begonnen) form.append(el('p', 'Ergebnisse wurden bereits erfasst. Für eine neue Auslosung zuerst diesen Spieltag beenden.', 'hint'));
     zaehlen();
     form.addEventListener('submit', async event => {
       event.preventDefault();
-      if (busy() || begonnen) return;
+      if (busy()) return;
       if (aktiv && !await bestaetigen({ titel: 'Neu auslosen?', text: 'Die bisherige Einteilung dieses Spieltags wird ersetzt.', bestaetigung: 'Neu auslosen' })) return;
       setBusy(true);
       try {
@@ -101,7 +103,13 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
       } catch (error) { meldung(error.message); }
       finally { setBusy(false); }
     });
-    section.append(form);
+    if (aktiv) {
+      const details = el('details', undefined, 'auslosung-einrichtung management-only');
+      details.open = auslosungOffen.get(letzter.id) ?? false;
+      details.addEventListener('toggle', () => auslosungOffen.set(letzter.id, details.open));
+      details.append(el('summary', 'Anwesenheit & Auslosung ändern'), form);
+      section.append(details);
+    } else section.append(form);
   }
   if (aktiv) {
     const [jahr, monat, tag] = letzter.datum.split('-');
