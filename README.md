@@ -60,7 +60,7 @@ Die Funktionen stehen in der linken Seitenleiste. Am Desktop lässt sie sich üb
 
 ## Datenhaltung
 
-Mit `?turnier=4&einzeln=1` öffnet sich ausschließlich das gewählte Turnier. Turnierauswahl, Neuanlage, Import und turnierübergreifender Sicherungsverlauf sind in dieser Ansicht ausgeblendet; der Leseaufruf lädt nur dieses Turnier. Anmeldung, Tagesauslosung, Ergebniserfassung, Export und Beameransicht bleiben verfügbar. Der Parameter lässt sich auch mit `&beamer=1` kombinieren. Ohne `einzeln=1` steht die normale Turnierauswahl zur Verfügung.
+Mit `?turnier=4` öffnet sich ausschließlich das gewählte Turnier. Den passenden Link kopiert **Link zu diesem Turnier** in der Seitenleiste. Turnierauswahl, Neuanlage, Import und turnierübergreifender Sicherungsverlauf sind in dieser Ansicht ausgeblendet; der Leseaufruf lädt nur dieses Turnier. Anmeldung, Tagesauslosung, Ergebniserfassung, Export und Beameransicht bleiben verfügbar. Der Parameter lässt sich auch mit `&beamer=1` kombinieren. Ohne `turnier`-Parameter steht die normale Turnierauswahl zur Verfügung.
 
 Alle Turniere und das Verzeichnis der Änderungen werden in `data/turniere.json` gespeichert. Ältere Dateien mit einer reinen Turnierliste werden beim nächsten Speichern automatisch übernommen. Der Webserver benötigt Schreibrechte auf `data/`.
 

@@ -11,7 +11,7 @@ const el = (tag, text, className = '') => {
 };
 
 const parameter = new URLSearchParams(location.search);
-const einzelAnsicht = parameter.get('einzeln') === '1';
+const einzelAnsicht = parameter.has('turnier');
 const festesTurnierId = Number(parameter.get('turnier'));
 document.body.classList.toggle('einzelansicht', einzelAnsicht);
 const NAVIGATION_KLEIN_KEY = 'turnierverwaltung:navigation-klein';
@@ -590,6 +590,8 @@ const render = () => {
   $('turnierBearbeiten').dataset.gesperrt = String(state.ausgewaehlt === null);
   $('turnierBearbeiten').disabled = state.ausgewaehlt === null;
   $('turnierLoeschen').dataset.gesperrt = String(state.ausgewaehlt === null);
+  $('turnierLink').dataset.gesperrt = String(state.ausgewaehlt === null);
+  $('turnierLink').disabled = state.ausgewaehlt === null;
   $('turnierLoeschen').disabled = state.ausgewaehlt === null;
   const aktuellesTurnier = state.turniere.find(turnier => turnier.id === state.ausgewaehlt);
   const urkundenGesperrt = !darfBearbeiten() || !aktuellesTurnier || !turnierIstAbgeschlossen(aktuellesTurnier);
@@ -746,6 +748,14 @@ $('beamerAnsicht').addEventListener('click', () => {
   const url = new URL(location.href); url.searchParams.set('beamer', '1');
   if (state.ausgewaehlt !== null) url.searchParams.set('turnier', state.ausgewaehlt);
   window.open(url, '_blank', 'noopener');
+});
+$('turnierLink').addEventListener('click', async () => {
+  if (state.ausgewaehlt === null) return;
+  const url = new URL(location.pathname, location.origin); url.searchParams.set('turnier', state.ausgewaehlt);
+  try {
+    await navigator.clipboard.writeText(url.href);
+    meldung(`Link kopiert: ${url.href}`, 'erfolg');
+  } catch { window.prompt('Link zu diesem Turnier:', url.href); }
 });
 $('drucken').addEventListener('click', () => { if (darfBearbeiten()) window.print(); });
 $('siegerurkunden').addEventListener('click', () => {
