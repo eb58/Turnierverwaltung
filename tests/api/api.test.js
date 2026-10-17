@@ -281,6 +281,67 @@ test('Fehlgeschlagene Sicherungen lassen aktuelle Daten und Verlauf unverändert
   } finally { await rm(dir); await rename(verschoben, dir); }
 });
 
+test('Turnierleitungen mit eigener PIN bearbeiten nur ihr Turnier, Verwaltung bleibt beim Superadmin', async () => {
+  const anlegen = async titel => (await anfrage('anlegen', 'POST', { titel, sportart: 'schach', modus: 'jeder-gegen-jeden',
+    teilnehmer: [1, 2, 3].map(nr => ({ spieler: [{ name: `${titel} ${nr}` }] })) })).payload.turnier;
+  let eigenes = await anlegen('Eigenes Turnier'); const fremdes = await anlegen('Fremdes Turnier');
+  const turnierPin = '613579';
+  const ohneLeitung = { cookie: '', csrf: '' };
+  await anfrage('leitung', 'GET', undefined, ohneLeitung);
+  assert.equal((await anfrage(`turnier-pin&turnier=${eigenes.id}`, 'POST', { pin: turnierPin }, ohneLeitung)).status, 401);
+  assert.equal((await anfrage(`turnier-pin&turnier=${eigenes.id}`, 'POST', { pin: 'kurz' })).status, 400);
+  assert.equal((await anfrage('turnier-pin&turnier=99999', 'POST', { pin: turnierPin })).status, 404);
+  const gesetzt = await anfrage(`turnier-pin&turnier=${eigenes.id}`, 'POST', { pin: turnierPin });
+  assert.equal(gesetzt.status, 200);
+  assert.ok(gesetzt.payload.leitung.turnierPins.includes(eigenes.id));
+  assert.equal((await readFile(join(tempOrdner, 'leitung.json'), 'utf8')).includes(turnierPin), false);
+
+  const tl = { cookie: '', csrf: '' };
+  await anfrage('leitung', 'GET', undefined, tl);
+  assert.equal((await anfrage('anmelden', 'POST', { pin: turnierPin, turnier: fremdes.id }, tl)).status, 401, 'Turnier-PIN gilt nicht für andere Turniere.');
+  const angemeldet = await anfrage('anmelden', 'POST', { pin: turnierPin, turnier: eigenes.id }, tl);
+  assert.equal(angemeldet.status, 200);
+  assert.deepEqual([angemeldet.payload.leitung.superadmin, angemeldet.payload.leitung.turniere], [false, [eigenes.id]]);
+  assert.equal(angemeldet.payload.leitung.turnierPins, undefined);
+
+  eigenes = (await anfrage(`ergebnis&turnier=${eigenes.id}&spiel=r1-s1`, 'PUT', { version: eigenes.version, punkteA: 1, punkteB: 0 }, tl)).payload.turnier;
+  const umbenannt = await anfrage(`umbenennen&turnier=${eigenes.id}`, 'PUT', { version: eigenes.version, titel: 'Eigenes Turnier neu' }, tl);
+  assert.equal(umbenannt.status, 200); eigenes = umbenannt.payload.turnier;
+  const teilnehmer = eigenes.teilnehmer.map(person => ({ id: person.id, spieler: [{ name: `${person.name} geändert` }] }));
+  const geaendert = await anfrage(`teilnehmer&turnier=${eigenes.id}`, 'PUT', { version: eigenes.version, teilnehmer }, tl);
+  assert.equal(geaendert.status, 200, 'Turnierleitung darf Teilnehmer ändern.'); eigenes = geaendert.payload.turnier;
+
+  assert.equal((await anfrage(`umbenennen&turnier=${fremdes.id}`, 'PUT', { version: fremdes.version, titel: 'Übernommen' }, tl)).status, 403);
+  assert.equal((await anfrage(`ergebnis&turnier=${fremdes.id}&spiel=r1-s1`, 'PUT', { version: fremdes.version, punkteA: 1, punkteB: 0 }, tl)).status, 403);
+  assert.equal((await anfrage('anlegen', 'POST', { titel: 'Neu', sportart: 'schach', modus: 'jeder-gegen-jeden', teilnehmer: [] }, tl)).status, 403);
+  assert.equal((await anfrage(`loeschen&turnier=${eigenes.id}`, 'DELETE', { version: eigenes.version }, tl)).status, 403);
+  assert.equal((await anfrage(`turnier-pin&turnier=${eigenes.id}`, 'POST', { pin: '111111' }, tl)).status, 403);
+  assert.equal((await anfrage('pin', 'POST', { aktuellePin: turnierPin, neuePin: '111111' }, tl)).status, 400, 'Ohne Turnier keine Superadmin-PIN-Änderung.');
+
+  const verlauf = (await anfrage('verlauf', 'GET', undefined, tl)).payload.verlauf;
+  assert.ok(verlauf.length >= 3 && verlauf.every(eintrag => eintrag.turnierId === eigenes.id));
+  const fremderEintrag = (await anfrage('verlauf')).payload.verlauf.find(eintrag => eintrag.turnierId === fremdes.id);
+  assert.equal((await anfrage(`stand&sicherung=${fremderEintrag.id}&seite=nachher`, 'GET', undefined, tl)).status, 403);
+  assert.equal((await anfrage('wiederherstellen', 'POST', { sicherung: fremderEintrag.id, seite: 'nachher', version: fremdes.version }, tl)).status, 403);
+
+  const neuePin = '624680';
+  assert.equal((await anfrage('pin', 'POST', { aktuellePin: '000000', neuePin, turnier: eigenes.id }, tl)).status, 400);
+  assert.equal((await anfrage('pin', 'POST', { aktuellePin: turnierPin, neuePin, turnier: eigenes.id }, tl)).status, 200);
+  const zweitesGeraet = { cookie: '', csrf: '' };
+  await anfrage('leitung', 'GET', undefined, zweitesGeraet);
+  assert.equal((await anfrage('anmelden', 'POST', { pin: neuePin, turnier: eigenes.id }, zweitesGeraet)).status, 200);
+
+  // Superadmin ersetzt die PIN: bestehende Sitzungen der Turnierleitung verlieren den Zugriff.
+  assert.equal((await anfrage(`turnier-pin&turnier=${eigenes.id}`, 'POST', { pin: '135792' })).status, 200);
+  assert.equal((await anfrage('leitung', 'GET', undefined, tl)).payload.leitung.angemeldet, false);
+  assert.equal((await anfrage(`umbenennen&turnier=${eigenes.id}`, 'PUT', { version: eigenes.version, titel: 'Zu spät' }, zweitesGeraet)).status, 401);
+
+  // Beim Löschen verschwindet auch die Turnier-PIN.
+  assert.equal((await anfrage(`loeschen&turnier=${eigenes.id}`, 'DELETE', { version: eigenes.version })).status, 200);
+  assert.equal((await anfrage('leitung')).payload.leitung.turnierPins.includes(eigenes.id), false);
+  assert.equal((await anfrage(`loeschen&turnier=${fremdes.id}`, 'DELETE', { version: fremdes.version })).status, 200);
+});
+
 test('PIN-Änderung und Abmeldung entziehen Sitzungen den Schreibzugriff', async () => {
   const zweite = { cookie: '', csrf: '' };
   await anfrage('leitung', 'GET', undefined, zweite);

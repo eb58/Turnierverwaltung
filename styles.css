@@ -162,6 +162,7 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
 .spieltag-partie { padding-top: .7rem; margin-top: .7rem; border-top: 1px solid var(--border); }
 .freie-partie { padding: .7rem; border: 1px dashed var(--accent); border-radius: 8px; }
 .zuschauer .leitung-only { display: none; }
+.kein-superadmin .superadmin-only { display: none; }
 .einzelansicht #turnierAuswahl, .einzelansicht label[for="turnierAuswahl"],
 .einzelansicht #neuesTurnier, .einzelansicht #importieren,
 .einzelansicht #verlaufOeffnen, .einzelansicht #turnierLoeschen { display: none; }

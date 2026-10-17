@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f766e">
   <title>Turnierverwaltung</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230f766e'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='white'%3E%E2%86%94%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css?v=26">
+  <link rel="stylesheet" href="styles.css?v=27">
 </head>
 <body class="zuschauer">
   <div class="app-layout">
@@ -44,9 +44,10 @@
           <div class="nav-gruppe">
             <label class="nav-gruppentitel" for="turnierAuswahl">Turnier</label>
             <select id="turnierAuswahl" aria-label="Turnier auswählen"></select>
-            <button id="neuesTurnier" class="management-only leitung-only" type="button" title="Neues Turnier anlegen"><svg class="nav-icon" aria-hidden="true"><use href="#icon-plus"></use></svg><span class="nav-label">Neues Turnier anlegen</span></button>
+            <button id="neuesTurnier" class="management-only leitung-only superadmin-only" type="button" title="Neues Turnier anlegen"><svg class="nav-icon" aria-hidden="true"><use href="#icon-plus"></use></svg><span class="nav-label">Neues Turnier anlegen</span></button>
             <button id="turnierBearbeiten" class="management-only leitung-only" type="button" title="Turnier ändern"><svg class="nav-icon" aria-hidden="true"><use href="#icon-edit"></use></svg><span class="nav-label">Turnier ändern</span></button>
-            <button id="turnierLoeschen" class="nav-gefahr management-only leitung-only" type="button" title="Turnier löschen"><svg class="nav-icon" aria-hidden="true"><use href="#icon-trash"></use></svg><span class="nav-label">Turnier löschen</span></button>
+            <button id="turnierLoeschen" class="nav-gefahr management-only leitung-only superadmin-only" type="button" title="Turnier löschen"><svg class="nav-icon" aria-hidden="true"><use href="#icon-trash"></use></svg><span class="nav-label">Turnier löschen</span></button>
+            <button id="turnierPinOeffnen" class="management-only leitung-only superadmin-only" type="button" title="PIN der Turnierleitung festlegen"><svg class="nav-icon" aria-hidden="true"><use href="#icon-key"></use></svg><span class="nav-label">Turnier-PIN festlegen</span></button>
           </div>
           <div class="nav-gruppe">
             <p class="nav-gruppentitel">Ansicht &amp; Ausgabe</p>
@@ -58,7 +59,7 @@
           <div class="nav-gruppe leitung-only">
             <p class="nav-gruppentitel">Daten &amp; Sicherungen</p>
             <button id="exportieren" class="management-only leitung-only" type="button" title="Exportieren"><svg class="nav-icon" aria-hidden="true"><use href="#icon-export"></use></svg><span class="nav-label">Exportieren</span></button>
-            <button id="importieren" class="management-only leitung-only" type="button" title="Importieren"><svg class="nav-icon" aria-hidden="true"><use href="#icon-import"></use></svg><span class="nav-label">Importieren</span></button>
+            <button id="importieren" class="management-only leitung-only superadmin-only" type="button" title="Importieren"><svg class="nav-icon" aria-hidden="true"><use href="#icon-import"></use></svg><span class="nav-label">Importieren</span></button>
             <button id="verlaufOeffnen" class="management-only leitung-only" type="button" title="Sicherungen &amp; Verlauf"><svg class="nav-icon" aria-hidden="true"><use href="#icon-history"></use></svg><span class="nav-label">Sicherungen &amp; Verlauf</span></button>
             <input id="importDatei" type="file" accept="application/json,.json" hidden>
           </div>
@@ -66,8 +67,8 @@
         <div class="nav management-only zugang">
           <span id="leitungsStatus" class="nav-status" role="status">Zuschaueransicht</span>
           <button id="leitungAnmelden" type="button"><svg class="nav-icon" aria-hidden="true"><use href="#icon-login"></use></svg><span class="nav-label">Turnierleitung anmelden</span></button>
-          <button id="pinAendern" class="leitung-only" type="button" title="PIN ändern"><svg class="nav-icon" aria-hidden="true"><use href="#icon-key"></use></svg><span class="nav-label">PIN ändern</span></button>
-          <button id="leitungAbmelden" class="leitung-only" type="button" title="Abmelden"><svg class="nav-icon" aria-hidden="true"><use href="#icon-logout"></use></svg><span class="nav-label">Abmelden</span></button>
+          <button id="pinAendern" class="leitung-only" type="button" title="PIN ändern"><svg class="nav-icon" aria-hidden="true"><use href="#icon-key"></use></svg><span class="nav-label">Eigene PIN ändern</span></button>
+          <button id="leitungAbmelden" type="button" hidden title="Abmelden"><svg class="nav-icon" aria-hidden="true"><use href="#icon-logout"></use></svg><span class="nav-label">Abmelden</span></button>
         </div>
       </div>
     </aside>
@@ -78,7 +79,7 @@
     <dialog id="leitungDialog" aria-labelledby="leitungTitel">
       <form id="leitungForm">
         <h2 id="leitungTitel">Turnierleitung anmelden</h2>
-        <p class="hint">Mit der Leitungs-PIN kannst du Turniere und Ergebnisse bearbeiten.</p>
+        <p class="hint">PIN der Turnierleitung für das gewählte Turnier oder Superadmin-PIN eingeben.</p>
         <label>Leitungs-PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="current-password" required></label>
         <p id="leitungFehler" class="fehler" role="alert" hidden></p>
         <div class="dialog-aktionen"><button id="leitungAbbrechen" class="secondary" type="button">Abbrechen</button><button type="submit">Anmelden</button></div>
@@ -87,13 +88,25 @@
 
     <dialog id="pinDialog" aria-labelledby="pinTitel">
       <form id="pinForm">
-        <h2 id="pinTitel">Leitungs-PIN ändern</h2>
+        <h2 id="pinTitel">PIN ändern</h2>
         <label>Bisherige PIN<input name="aktuellePin" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="current-password" required></label>
         <label>Neue PIN<input name="neuePin" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="new-password" required></label>
         <label>Neue PIN wiederholen<input name="wiederholung" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="new-password" required></label>
-        <p class="hint">Die PIN gilt für Schach und Tischtennis. Andere angemeldete Geräte müssen sich danach erneut anmelden.</p>
+        <p id="pinHinweis" class="hint"></p>
         <p id="pinFehler" class="fehler" role="alert" hidden></p>
         <div class="dialog-aktionen"><button id="pinAbbrechen" class="secondary" type="button">Abbrechen</button><button type="submit">PIN speichern</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="turnierPinDialog" aria-labelledby="turnierPinTitel">
+      <form id="turnierPinForm">
+        <h2 id="turnierPinTitel">Turnier-PIN festlegen</h2>
+        <p id="turnierPinHinweis" class="hint"></p>
+        <label>Neue Turnier-PIN<input name="neuePin" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="new-password" required></label>
+        <label>PIN wiederholen<input name="wiederholung" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="new-password" required></label>
+        <p class="hint">Mit dieser PIN kann die Turnierleitung Ergebnisse, Auslosung, Teilnehmer und Einstellungen dieses Turniers bearbeiten – aber keine Turniere anlegen, löschen oder importieren.</p>
+        <p id="turnierPinFehler" class="fehler" role="alert" hidden></p>
+        <div class="dialog-aktionen"><button id="turnierPinEntfernen" class="danger" type="button" hidden>PIN entfernen</button><button id="turnierPinAbbrechen" class="secondary" type="button">Abbrechen</button><button type="submit">PIN speichern</button></div>
       </form>
     </dialog>
 
@@ -180,6 +193,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=57"></script>
+  <script type="module" src="app.js?v=58"></script>
 </body>
 </html>

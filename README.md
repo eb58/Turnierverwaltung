@@ -32,7 +32,7 @@ Eigenständige Verwaltung von Tischtennis-Doppelturnieren und Schachturnieren mi
 
 Voraussetzung: PHP 8.x.
 
-Vor der ersten Nutzung eine Leitungs-PIN einrichten. Die folgende Variante erzeugt eine zufällige PIN und zeigt sie einmal im Terminal an:
+Vor der ersten Nutzung die Superadmin-PIN einrichten. Die folgende Variante erzeugt eine zufällige PIN und zeigt sie einmal im Terminal an:
 
 ```powershell
 php pin-einrichten.php
@@ -46,7 +46,7 @@ $neueLeitungsPin | php pin-einrichten.php --stdin
 Remove-Variable neueLeitungsPin
 ```
 
-Eine bestehende PIN wird durch erneutes Ausführen nicht überschrieben. Zum bewussten Zurücksetzen steht `--zuruecksetzen` zur Verfügung. Die PIN kann nach Anmeldung auch in der Anwendung geändert werden. Das Einrichtungsskript ist ausschließlich über PHP-CLI ausführbar.
+Eine bestehende PIN wird durch erneutes Ausführen nicht überschrieben. Zum bewussten Zurücksetzen steht `--zuruecksetzen` zur Verfügung; die PINs der Turnierleitungen bleiben dabei erhalten. Die PIN kann nach Anmeldung auch in der Anwendung geändert werden. Das Einrichtungsskript ist ausschließlich über PHP-CLI ausführbar.
 
 ```powershell
 php -S localhost:8001 router.php
@@ -54,7 +54,12 @@ php -S localhost:8001 router.php
 
 Danach <http://localhost:8001> öffnen.
 
-Die Seite startet in der Zuschaueransicht. Über **Turnierleitung anmelden** werden Bearbeitung, **Drucken**, **Urkunden**, **Exportieren** und **Sicherungen & Verlauf** freigeschaltet. Beameransichten bleiben schreibgeschützt. Die Anmeldung läuft nach acht Stunden ohne Aktivität ab; eine PIN-Änderung macht andere Sitzungen ungültig.
+Die Seite startet in der Zuschaueransicht. Über **Turnierleitung anmelden** wird die PIN für das gewählte Turnier eingegeben. Es gibt zwei Rollen:
+
+- **Superadmin** (PIN aus `pin-einrichten.php`): darf alles, insbesondere Turniere anlegen, löschen und importieren sowie über **Turnier-PIN festlegen** jedem Turnier eine eigene PIN geben, sie ersetzen oder entfernen.
+- **Turnierleitung** (eigene PIN pro Turnier): bearbeitet nur dieses Turnier – Ergebnisse, Auslosung und Spieltage, Teilnehmer, Einstellungen, Umbenennen – und darf **Drucken**, **Urkunden**, **Exportieren**, **Link zu diesem Turnier** sowie **Sicherungen & Verlauf** dieses Turniers nutzen. Die eigene Turnier-PIN kann sie selbst ändern.
+
+Ein Turnier ohne eigene PIN kann nur der Superadmin bearbeiten. Eine Sitzung kann für mehrere Turniere angemeldet sein; andere Turniere sieht sie in der Zuschaueransicht. Die Rechte werden bei jeder Aktion auf dem Server geprüft. Beameransichten bleiben schreibgeschützt. Die Anmeldung läuft nach acht Stunden ohne Aktivität ab; eine PIN-Änderung macht andere Sitzungen mit dieser PIN ungültig. Beim Löschen eines Turniers wird auch dessen PIN entfernt.
 
 Die Funktionen stehen in der linken Seitenleiste. Am Desktop lässt sie sich über die runde Taste am Rand zu einer schmalen Symbolleiste verkleinern; der Zustand wird im Browser gemerkt. Auf schmalen Bildschirmen wird sie zur Kopfleiste, deren Menütaste die Funktionen als Aufklappmenü zeigt. Beim Drucken und in der Beameransicht ist sie ausgeblendet.
 
@@ -66,7 +71,7 @@ Alle Turniere und das Verzeichnis der Änderungen werden in `data/turniere.json`
 
 Vor jeder Änderung werden der vorherige und neue Turnierstand in einer eigenen Datei unter `data/sicherungen/` gesichert. Aktuelle Daten werden erst danach atomar ersetzt. Schlägt eine Sicherung fehl, bleibt der aktuelle Stand erhalten. Die Sicherungen werden dauerhaft aufbewahrt. Beim Wiederherstellen wird eine neue Version vergeben; andere Turniere bleiben erhalten, und parallele Änderungen werden geprüft. Sicherungen existieren ab der ersten Änderung mit dieser Version der Anwendung.
 
-Die PIN liegt ausschließlich als Passwort-Hash in `data/leitung.json`; Sitzungen und begrenzte Anmeldeversuche werden ebenfalls unter `data/` gespeichert. Das gesamte Verzeichnis ist über Apache und den lokalen Router vom direkten Webzugriff ausgeschlossen und nicht versioniert. Für einen vollständigen Umzug bzw. eine zusätzliche Sicherung das gesamte `data/`-Verzeichnis kopieren.
+Superadmin- und Turnier-PINs liegen ausschließlich als Passwort-Hash in `data/leitung.json` (Turnier-PINs unter `turniere`, nach Turnier-ID); sie stehen nie in `turniere.json`, Exporten oder Sicherungen. Sitzungen und begrenzte Anmeldeversuche werden ebenfalls unter `data/` gespeichert. Das gesamte Verzeichnis ist über Apache und den lokalen Router vom direkten Webzugriff ausgeschlossen und nicht versioniert. Für einen vollständigen Umzug bzw. eine zusätzliche Sicherung das gesamte `data/`-Verzeichnis kopieren.
 
 Anmeldesitzungen verwenden einen eigenen CSRF-Token sowie Cookies mit HttpOnly und SameSite=Strict, bei HTTPS zusätzlich Secure. Verwendete PHP-Grundlagen: [Sitzungseinstellungen](https://www.php.net/manual/en/session.security.ini.php), [Passwort-Hashing](https://www.php.net/manual/en/function.password-hash.php).
 

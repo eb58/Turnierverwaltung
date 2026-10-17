@@ -4,13 +4,23 @@ declare(strict_types=1);
 
 function leitungDatei(): string { return datenOrdner() . '/leitung.json'; }
 
+// pinHash/kennung gehören zum Superadmin; unter "turniere" stehen die PINs der einzelnen Turnierleitungen.
 function leitungKonfiguration(): ?array
 {
     $config = jsonDatei(leitungDatei());
-    if ($config !== null && (!is_array($config) || !is_string($config['pinHash'] ?? null) || !is_string($config['kennung'] ?? null))) {
+    if ($config === null) return null;
+    $gueltig = fn(mixed $eintrag): bool => is_array($eintrag) && is_string($eintrag['pinHash'] ?? null) && is_string($eintrag['kennung'] ?? null);
+    if (!$gueltig($config) || !is_array($config['turniere'] ?? []) || array_filter($config['turniere'] ?? [], fn(mixed $eintrag): bool => !$gueltig($eintrag))) {
         throw new ApiError('Die Leitungs-PIN konnte nicht geladen werden.', 500);
     }
+    $config['turniere'] ??= [];
     return $config;
+}
+
+function leitungKonfigurationSpeichern(array $config): void
+{
+    if ($config['turniere'] === []) unset($config['turniere']);
+    jsonAtomarSpeichern(leitungDatei(), $config);
 }
 
 function pinPruefen(mixed $pin): string
@@ -19,10 +29,16 @@ function pinPruefen(mixed $pin): string
     return $pin;
 }
 
+function pinEintrag(string $pin): array
+{
+    return ['pinHash' => password_hash(pinPruefen($pin), PASSWORD_DEFAULT), 'kennung' => bin2hex(random_bytes(16))];
+}
+
+// Setzt die Superadmin-PIN; die PINs der Turnierleitungen bleiben erhalten.
 function pinSpeichern(string $pin): array
 {
-    $config = ['pinHash' => password_hash(pinPruefen($pin), PASSWORD_DEFAULT), 'kennung' => bin2hex(random_bytes(16))];
-    jsonAtomarSpeichern(leitungDatei(), $config);
+    $config = pinEintrag($pin) + ['turniere' => leitungKonfiguration()['turniere'] ?? []];
+    leitungKonfigurationSpeichern($config);
     return $config;
 }
 
@@ -43,15 +59,26 @@ function leitungStarten(): void
     $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
 }
 
+// Eine Sitzung gilt nur, solange die Kennung der zugehörigen PIN unverändert ist.
 function leitungInfo(): array
 {
     leitungStarten();
     $config = leitungKonfiguration();
-    $angemeldet = $config !== null && is_string($_SESSION['leitung'] ?? null)
-        && hash_equals($config['kennung'], $_SESSION['leitung']) && ($_SESSION['aktiv'] ?? 0) > time() - 28800;
-    if ($angemeldet) $_SESSION['aktiv'] = time();
-    else unset($_SESSION['leitung'], $_SESSION['aktiv']);
-    return ['eingerichtet' => $config !== null, 'angemeldet' => $angemeldet, 'csrf' => $_SESSION['csrf']];
+    $aktiv = $config !== null && ($_SESSION['aktiv'] ?? 0) > time() - 28800;
+    $superadmin = $aktiv && is_string($_SESSION['leitung'] ?? null) && hash_equals($config['kennung'], $_SESSION['leitung']);
+    $turniere = [];
+    if ($aktiv && is_array($_SESSION['turniere'] ?? null)) foreach ($_SESSION['turniere'] as $id => $kennung) {
+        $eintrag = $config['turniere'][(string) $id] ?? null;
+        if ($eintrag !== null && is_string($kennung) && hash_equals($eintrag['kennung'], $kennung)) $turniere[(int) $id] = $kennung;
+    }
+    $angemeldet = $superadmin || $turniere !== [];
+    if (!$superadmin) unset($_SESSION['leitung']);
+    $_SESSION['turniere'] = $turniere;
+    if ($angemeldet) $_SESSION['aktiv'] = time(); else unset($_SESSION['aktiv']);
+    $info = ['eingerichtet' => $config !== null, 'angemeldet' => $angemeldet, 'superadmin' => $superadmin,
+        'turniere' => array_keys($turniere), 'csrf' => $_SESSION['csrf']];
+    if ($superadmin) $info['turnierPins'] = array_map('intval', array_keys($config['turniere']));
+    return $info;
 }
 
 function csrfPruefen(): void
@@ -61,33 +88,60 @@ function csrfPruefen(): void
     if (!is_string($token) || !hash_equals($_SESSION['csrf'], $token)) throw new ApiError('Bitte die Seite neu laden und erneut versuchen.', 403);
 }
 
-function leitungPruefen(bool $schreiben = false): void
+function leitungPruefen(bool $schreiben = false): array
 {
-    if (!leitungInfo()['angemeldet']) throw new ApiError('Bitte zuerst als Turnierleitung anmelden.', 401);
+    $info = leitungInfo();
+    if (!$info['angemeldet']) throw new ApiError('Bitte zuerst als Turnierleitung anmelden.', 401);
     if ($schreiben) csrfPruefen();
+    return $info;
 }
 
-function leitungAnmelden(mixed $pin): array
+function superadminPruefen(): void
+{
+    if (!leitungInfo()['superadmin']) throw new ApiError('Das darf nur der Superadmin.', 403);
+}
+
+function darfTurnier(array $info, mixed $id): bool
+{
+    return $info['superadmin'] || (is_int($id) && in_array($id, $info['turniere'], true));
+}
+
+function turnierRechtPruefen(mixed $id): void
+{
+    if (!darfTurnier(leitungInfo(), $id)) throw new ApiError('Für dieses Turnier bist du nicht als Turnierleitung angemeldet.', 403);
+}
+
+// Prüft zuerst die Superadmin-PIN, sonst die PIN des angegebenen Turniers.
+function leitungAnmelden(mixed $pin, mixed $turnierId = null): array
 {
     csrfPruefen();
     $config = leitungKonfiguration();
     if ($config === null) throw new ApiError('Die Leitungs-PIN wurde noch nicht eingerichtet.', 503);
+    $turnierEintrag = is_int($turnierId) ? $config['turniere'][(string) $turnierId] ?? null : null;
     $datei = datenOrdner() . '/anmeldeversuche.json';
-    $erfolg = mitDateiSperre($datei . '.lock', function () use ($datei, $pin, $config): bool {
+    $rolle = mitDateiSperre($datei . '.lock', function () use ($datei, $pin, $config, $turnierEintrag): ?string {
         $versuche = jsonDatei($datei, []); $jetzt = time();
         $versuche = array_filter($versuche, fn(array $versuch): bool => $versuch['seit'] > $jetzt - 900);
         $key = hash('sha256', $_SERVER['REMOTE_ADDR'] ?? 'unbekannt');
         $versuch = $versuche[$key] ?? ['seit' => $jetzt, 'anzahl' => 0];
         if ($versuch['anzahl'] >= 8) throw new ApiError('Zu viele Anmeldeversuche. Bitte nach 15 Minuten erneut versuchen.', 429);
-        $erfolg = is_string($pin) && preg_match('/^[0-9]{6,12}$/D', $pin) && password_verify($pin, $config['pinHash']);
-        if ($erfolg) unset($versuche[$key]);
+        $format = is_string($pin) && preg_match('/^[0-9]{6,12}$/D', $pin);
+        $rolle = match (true) {
+            $format && password_verify($pin, $config['pinHash']) => 'superadmin',
+            $format && $turnierEintrag !== null && password_verify($pin, $turnierEintrag['pinHash']) => 'turnier',
+            default => null,
+        };
+        if ($rolle !== null) unset($versuche[$key]);
         else { $versuch['anzahl']++; $versuche[$key] = $versuch; }
         jsonAtomarSpeichern($datei, $versuche);
-        return (bool) $erfolg;
+        return $rolle;
     });
-    if (!$erfolg) throw new ApiError('Die PIN stimmt nicht.', 401);
+    if ($rolle === null) throw new ApiError('Die PIN stimmt nicht.', 401);
+    // Bestehende Berechtigungen dieser Sitzung bleiben erhalten, die neue kommt hinzu.
     session_regenerate_id(true);
-    $_SESSION['leitung'] = $config['kennung']; $_SESSION['aktiv'] = time(); $_SESSION['csrf'] = bin2hex(random_bytes(32));
+    if ($rolle === 'superadmin') $_SESSION['leitung'] = $config['kennung'];
+    else $_SESSION['turniere'][$turnierId] = $turnierEintrag['kennung'];
+    $_SESSION['aktiv'] = time(); $_SESSION['csrf'] = bin2hex(random_bytes(32));
     return leitungInfo();
 }
 
@@ -99,16 +153,41 @@ function leitungAbmelden(): array
     return leitungInfo();
 }
 
+// Ohne "turnier" ändert der Superadmin seine PIN, mit "turnier" die Turnierleitung die PIN ihres Turniers.
 function leitungPinAendern(array $payload): array
 {
-    leitungPruefen(true);
+    $info = leitungPruefen(true);
     $pin = pinPruefen($payload['neuePin'] ?? null);
-    $config = mitDateiSperre(leitungDatei() . '.lock', function () use ($payload, $pin): array {
-        $bisher = leitungKonfiguration();
+    $turnierId = $payload['turnier'] ?? null;
+    if ($turnierId === null && !$info['superadmin']) throw new ApiError('Bitte das Turnier angeben, dessen PIN geändert werden soll.');
+    if ($turnierId !== null && (!is_int($turnierId) || !in_array($turnierId, $info['turniere'], true))) {
+        throw new ApiError('Die PIN eines Turniers kann nur dessen angemeldete Turnierleitung ändern.', 403);
+    }
+    $config = mitDateiSperre(leitungDatei() . '.lock', function () use ($payload, $pin, $turnierId): array {
+        $config = leitungKonfiguration();
+        $bisher = $turnierId === null ? $config : $config['turniere'][(string) $turnierId];
         if (!is_string($payload['aktuellePin'] ?? null) || !password_verify($payload['aktuellePin'], $bisher['pinHash'])) throw new ApiError('Die bisherige PIN stimmt nicht.');
-        return pinSpeichern($pin);
+        if ($turnierId === null) return pinSpeichern($pin);
+        $config['turniere'][(string) $turnierId] = pinEintrag($pin);
+        leitungKonfigurationSpeichern($config);
+        return $config;
     });
     session_regenerate_id(true);
-    $_SESSION['leitung'] = $config['kennung']; $_SESSION['csrf'] = bin2hex(random_bytes(32)); $_SESSION['aktiv'] = time();
+    if ($turnierId === null) $_SESSION['leitung'] = $config['kennung'];
+    else $_SESSION['turniere'][$turnierId] = $config['turniere'][(string) $turnierId]['kennung'];
+    $_SESSION['csrf'] = bin2hex(random_bytes(32)); $_SESSION['aktiv'] = time();
+    return leitungInfo();
+}
+
+// Superadmin vergibt oder ersetzt (pin) bzw. entfernt (pin = null) die PIN einer Turnierleitung.
+function turnierPinSetzen(int $turnierId, mixed $pin): array
+{
+    if ($pin !== null) pinPruefen($pin);
+    mitDateiSperre(leitungDatei() . '.lock', function () use ($turnierId, $pin): void {
+        $config = leitungKonfiguration();
+        if ($pin === null) unset($config['turniere'][(string) $turnierId]);
+        else $config['turniere'][(string) $turnierId] = pinEintrag($pin);
+        leitungKonfigurationSpeichern($config);
+    });
     return leitungInfo();
 }

@@ -332,10 +332,20 @@ try {
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     $action = $_GET['action'] ?? '';
     if ($method === 'GET' && $action === 'leitung') respond(['leitung' => leitungInfo()]);
-    if ($method === 'POST' && $action === 'anmelden') respond(['leitung' => leitungAnmelden(body()['pin'] ?? null)]);
+    if ($method === 'POST' && $action === 'anmelden') { $anmeldung = body(); respond(['leitung' => leitungAnmelden($anmeldung['pin'] ?? null, $anmeldung['turnier'] ?? null)]); }
     if ($method === 'POST' && $action === 'abmelden') respond(['leitung' => leitungAbmelden()]);
     if ($method === 'POST' && $action === 'pin') respond(['leitung' => leitungPinAendern(body())]);
-    if ($method !== 'GET') leitungPruefen(true);
+    if ($method !== 'GET') {
+        // Superadmin darf alles; Turnierleitungen nur Aktionen an ihren eigenen Turnieren.
+        leitungPruefen(true);
+        if (in_array($action, ['anlegen', 'importieren', 'loeschen', 'turnier-pin'], true)) superadminPruefen();
+        elseif ($action !== 'wiederherstellen') turnierRechtPruefen(filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT));
+    }
+    if ($method === 'POST' && $action === 'turnier-pin') {
+        $payload = body(); $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT);
+        withStore(fn(array $turniere): int => turnierIndex($turniere, (int) $id));
+        respond(['leitung' => turnierPinSetzen((int) $id, $payload['pin'] ?? null)]);
+    }
     if ($method === 'POST' && in_array($action, ['auslosen', 'spieltag-beenden'], true)) {
         $payload = body(); $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT);
         respond(withStore(function (array &$turniere) use ($payload, $id, $action): array {
@@ -346,21 +356,24 @@ try {
         }, true));
     }
     if ($method === 'GET' && $action === 'verlauf') {
-        leitungPruefen();
-        respond(withStore(fn(array $turniere, array $verlauf): array => ['verlauf' => array_reverse($verlauf)]));
+        $info = leitungPruefen();
+        respond(withStore(fn(array $turniere, array $verlauf): array => ['verlauf' => array_values(array_reverse(
+            array_filter($verlauf, fn(array $eintrag): bool => darfTurnier($info, $eintrag['turnierId']))))]));
     }
     if ($method === 'GET' && $action === 'stand') {
-        leitungPruefen();
-        respond(withStore(function (array $turniere, array $verlauf): array {
+        $info = leitungPruefen();
+        respond(withStore(function (array $turniere, array $verlauf) use ($info): array {
             $result = sicherungsStand($verlauf, $_GET['sicherung'] ?? null, $_GET['seite'] ?? null);
+            if (!darfTurnier($info, $result['turnier']['id'])) throw new ApiError('Für dieses Turnier bist du nicht als Turnierleitung angemeldet.', 403);
             $aktuell = array_column($turniere, null, 'id')[$result['turnier']['id']] ?? null;
             return $result + ['aktuelleVersion' => $aktuell['version'] ?? null];
         }));
     }
     if ($method === 'POST' && $action === 'wiederherstellen') {
-        $payload = body();
-        respond(withStore(function (array &$turniere, array $verlauf) use ($payload): array {
+        $payload = body(); $info = leitungInfo();
+        respond(withStore(function (array &$turniere, array $verlauf) use ($payload, $info): array {
             $stand = sicherungsStand($verlauf, $payload['sicherung'] ?? null, $payload['seite'] ?? null)['turnier'];
+            if (!darfTurnier($info, $stand['id'])) throw new ApiError('Für dieses Turnier bist du nicht als Turnierleitung angemeldet.', 403);
             $aktuell = array_column($turniere, null, 'id')[$stand['id']] ?? null;
             if (!array_key_exists('version', $payload) || $payload['version'] !== ($aktuell['version'] ?? null)) throw new ApiError('Das Turnier wurde inzwischen geändert. Bitte die Vorschau erneut öffnen.', 409);
             $versionen = [0, $stand['version'], $aktuell['version'] ?? 0];
@@ -378,10 +391,10 @@ try {
         if ($id === false) throw new ApiError('Ungültige Turniernummer.');
         $leitung = leitungInfo();
         respond(withStore(function (array &$turniere) use ($leitung, $id): array {
-            if ($leitung['angemeldet']) ungespielteKoTurniereUmstellen($turniere);
+            if ($leitung['superadmin']) ungespielteKoTurniereUmstellen($turniere);
             $auswahl = $id === null ? $turniere : [$turniere[turnierIndex($turniere, $id)]];
             return ['turniere' => $auswahl, 'leitung' => $leitung];
-        }, $leitung['angemeldet']));
+        }, $leitung['superadmin']));
     }
     if ($method === 'POST' && $action === 'anlegen') {
         $payload = body();
@@ -409,6 +422,7 @@ try {
             array_splice($turniere, $index, 1);
             return ['geloescht' => $geloescht];
         }, true);
+        turnierPinSetzen($result['geloescht'], null);
         respond($result);
     }
     if ($method === 'PUT' && $action === 'turnier') {

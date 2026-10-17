@@ -36,8 +36,10 @@ $('menueUmschalten').addEventListener('click', () => menueOeffnen(!document.body
 $('navigationInhalt').addEventListener('click', event => { if (event.target.closest('button')) menueOeffnen(false); });
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && document.body.classList.contains('menue-offen')) menueOeffnen(false); });
 document.addEventListener('click', event => { if (!event.target.closest('.seitenleiste')) menueOeffnen(false); });
-const state = { turniere: [], ausgewaehlt: Number(parameter.get('turnier')) || null, busy: false, beamer: parameter.has('beamer'), leitung: { eingerichtet: false, angemeldet: false, csrf: '' }, verlauf: [] };
-const darfBearbeiten = () => state.leitung.angemeldet && !state.beamer;
+const state = { turniere: [], ausgewaehlt: Number(parameter.get('turnier')) || null, busy: false, beamer: parameter.has('beamer'), leitung: { eingerichtet: false, angemeldet: false, superadmin: false, turniere: [], csrf: '' }, verlauf: [] };
+const istSuperadmin = () => state.leitung.superadmin && !state.beamer;
+// Turnierleitungen dürfen nur ihr eigenes Turnier bearbeiten, der Superadmin alle.
+const darfBearbeiten = () => !state.beamer && (state.leitung.superadmin || state.leitung.turniere.includes(state.ausgewaehlt));
 const form = $('turnierForm');
 const paare = $('paare');
 const details = $('details');
@@ -92,12 +94,15 @@ const setBusy = busy => {
 
 const zugangAktualisieren = () => {
   document.body.classList.toggle('zuschauer', !darfBearbeiten());
+  document.body.classList.toggle('kein-superadmin', !istSuperadmin());
   for (const id of ['drucken', 'exportieren']) {
     $(id).dataset.gesperrt = String(!darfBearbeiten());
     $(id).disabled = state.busy || !darfBearbeiten();
   }
-  $('leitungsStatus').textContent = darfBearbeiten() ? 'Als Turnierleitung angemeldet' : 'Zuschaueransicht';
-  $('leitungAnmelden').hidden = state.leitung.angemeldet;
+  $('leitungsStatus').textContent = istSuperadmin() ? 'Als Superadmin angemeldet' : darfBearbeiten() ? 'Als Turnierleitung angemeldet'
+    : state.leitung.angemeldet ? 'Für dieses Turnier nur Zuschaueransicht' : 'Zuschaueransicht';
+  $('leitungAnmelden').hidden = darfBearbeiten();
+  $('leitungAbmelden').hidden = !state.leitung.angemeldet;
   $('leitungAnmelden').dataset.gesperrt = String(!state.leitung.eingerichtet);
   $('leitungAnmelden').disabled = state.busy || !state.leitung.eingerichtet;
   $('leitungAnmelden').title = state.leitung.eingerichtet ? 'Turnierleitung anmelden' : 'Die Anmeldung ist noch nicht freigeschaltet.';
@@ -113,8 +118,8 @@ const request = async (action = '', options = {}) => {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (response.status === 401 && action !== 'anmelden') {
-      state.leitung.angemeldet = false;
-      turnierDialog.close(); $('verlaufDialog').close(); $('pinDialog').close();
+      Object.assign(state.leitung, { angemeldet: false, superadmin: false, turniere: [] });
+      turnierDialog.close(); $('verlaufDialog').close(); $('pinDialog').close(); $('turnierPinDialog').close();
       render();
       meldung(payload.error || 'Bitte erneut als Turnierleitung anmelden.');
     }
@@ -742,7 +747,7 @@ form.elements.sportart.addEventListener('change', () => {
 form.elements.titel.addEventListener('input', aktualisiereFantasiePaarSichtbarkeit);
 
 $('paarHinzufuegen').addEventListener('click', addPaar);
-auswahl.addEventListener('change', () => { state.ausgewaehlt = Number(auswahl.value); renderDetails(); });
+auswahl.addEventListener('change', () => { state.ausgewaehlt = Number(auswahl.value); render(); });
 
 $('beamerAnsicht').addEventListener('click', () => {
   const url = new URL(location.href); url.searchParams.set('beamer', '1');
@@ -806,9 +811,9 @@ $('leitungForm').addEventListener('submit', async event => {
   const pin = $('leitungForm').elements.pin.value;
   setBusy(true); inlineFehler('leitungFehler');
   try {
-    state.leitung = (await request('anmelden', { method: 'POST', body: JSON.stringify({ pin }) })).leitung;
+    state.leitung = (await request('anmelden', { method: 'POST', body: JSON.stringify({ pin, turnier: state.ausgewaehlt }) })).leitung;
     const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung;
-    $('leitungDialog').close(); render(); meldung('Als Turnierleitung angemeldet.', 'erfolg');
+    $('leitungDialog').close(); render(); meldung(istSuperadmin() ? 'Als Superadmin angemeldet.' : 'Als Turnierleitung angemeldet.', 'erfolg');
   } catch (error) { inlineFehler('leitungFehler', error.message); }
   finally { $('leitungForm').elements.pin.value = ''; setBusy(false); }
 });
@@ -817,12 +822,17 @@ $('leitungAbmelden').addEventListener('click', async () => {
   setBusy(true);
   try {
     state.leitung = (await request('abmelden', { method: 'POST', body: '{}' })).leitung;
-    turnierDialog.close(); $('verlaufDialog').close(); $('pinDialog').close();
+    turnierDialog.close(); $('verlaufDialog').close(); $('pinDialog').close(); $('turnierPinDialog').close();
     render(); meldung('Abgemeldet. Die Zuschaueransicht ist aktiv.', 'erfolg');
   } catch (error) { meldung(error.message); }
   finally { setBusy(false); }
 });
 $('pinAendern').addEventListener('click', () => {
+  const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
+  $('pinTitel').textContent = istSuperadmin() ? 'Superadmin-PIN ändern' : 'Turnier-PIN ändern';
+  $('pinHinweis').textContent = istSuperadmin()
+    ? 'Die Superadmin-PIN gilt für alle Turniere. Andere als Superadmin angemeldete Geräte müssen sich danach erneut anmelden.'
+    : `Die PIN gilt nur für „${turnier?.titel ?? ''}“. Andere angemeldete Geräte dieser Turnierleitung müssen sich danach erneut anmelden.`;
   $('pinForm').reset(); inlineFehler('pinFehler'); $('pinDialog').showModal(); $('pinForm').elements.aktuellePin.focus();
 });
 $('pinAbbrechen').addEventListener('click', () => $('pinDialog').close());
@@ -832,13 +842,46 @@ $('pinForm').addEventListener('submit', async event => {
   if (state.busy) return;
   const felder = $('pinForm').elements;
   if (felder.neuePin.value !== felder.wiederholung.value) { inlineFehler('pinFehler', 'Die neuen PINs stimmen nicht überein.'); return; }
-  const payload = { aktuellePin: felder.aktuellePin.value, neuePin: felder.neuePin.value };
+  const payload = { aktuellePin: felder.aktuellePin.value, neuePin: felder.neuePin.value, ...(istSuperadmin() ? {} : { turnier: state.ausgewaehlt }) };
   setBusy(true); inlineFehler('pinFehler');
   try {
     state.leitung = (await request('pin', { method: 'POST', body: JSON.stringify(payload) })).leitung;
-    $('pinDialog').close(); render(); meldung('Leitungs-PIN geändert.', 'erfolg');
+    $('pinDialog').close(); render(); meldung('PIN geändert.', 'erfolg');
   } catch (error) { inlineFehler('pinFehler', error.message); }
   finally { $('pinForm').reset(); setBusy(false); }
+});
+
+const turnierPinSpeichern = async pin => {
+  if (state.busy) return;
+  setBusy(true); inlineFehler('turnierPinFehler');
+  try {
+    state.leitung = (await request(`turnier-pin&turnier=${state.ausgewaehlt}`, { method: 'POST', body: JSON.stringify({ pin }) })).leitung;
+    $('turnierPinDialog').close(); render(); meldung(pin === null ? 'Turnier-PIN entfernt.' : 'Turnier-PIN gespeichert.', 'erfolg');
+  } catch (error) { inlineFehler('turnierPinFehler', error.message); }
+  finally { $('turnierPinForm').reset(); setBusy(false); }
+};
+$('turnierPinOeffnen').addEventListener('click', () => {
+  const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
+  if (!turnier || !istSuperadmin()) return;
+  const vorhanden = state.leitung.turnierPins?.includes(turnier.id);
+  $('turnierPinHinweis').textContent = vorhanden
+    ? `„${turnier.titel}“ hat bereits eine eigene PIN. Eine neue PIN ersetzt sie; angemeldete Geräte der Turnierleitung müssen sich neu anmelden.`
+    : `„${turnier.titel}“ hat noch keine eigene PIN und kann nur vom Superadmin bearbeitet werden.`;
+  $('turnierPinEntfernen').hidden = !vorhanden;
+  $('turnierPinForm').reset(); inlineFehler('turnierPinFehler'); $('turnierPinDialog').showModal(); $('turnierPinForm').elements.neuePin.focus();
+});
+$('turnierPinAbbrechen').addEventListener('click', () => $('turnierPinDialog').close());
+$('turnierPinDialog').addEventListener('close', () => $('turnierPinForm').reset());
+$('turnierPinForm').addEventListener('submit', event => {
+  event.preventDefault();
+  const felder = $('turnierPinForm').elements;
+  if (felder.neuePin.value !== felder.wiederholung.value) { inlineFehler('turnierPinFehler', 'Die PINs stimmen nicht überein.'); return; }
+  void turnierPinSpeichern(felder.neuePin.value);
+});
+$('turnierPinEntfernen').addEventListener('click', async () => {
+  $('turnierPinDialog').close();
+  if (!await dialogOeffnen({ titel: 'Turnier-PIN entfernen?', text: 'Danach kann nur noch der Superadmin dieses Turnier bearbeiten.', bestaetigung: 'PIN entfernen', gefahr: true })) return;
+  void turnierPinSpeichern(null);
 });
 
 const zeitText = zeit => new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(zeit));
