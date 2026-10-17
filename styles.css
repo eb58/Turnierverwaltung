@@ -59,7 +59,7 @@ input, select { width: 100%; padding: .5rem .65rem; background: white; color: va
 .nav button:disabled:hover { background: transparent; }
 .nav-icon { flex: 0 0 20px; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .nav-label { min-width: 0; }
-.zugang { margin-top: auto; padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, .12); gap: .25rem; }
+.zugang { padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, .12); gap: .25rem; }
 .nav-status { padding: 0 .75rem .35rem; color: #b6d9d4; font-size: .82rem; }
 .navigation-klein .seitenleiste { gap: .9rem; padding: 1.1rem .5rem; }
 .navigation-klein .seitenleiste-kopf { justify-content: center; align-items: flex-start; min-height: 96px; padding-right: 0; }
