@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 define('TURNIER_API_NO_DISPATCH', true);
-require dirname(__DIR__, 2) . '/api.php';
+require dirname(__DIR__, 2) . '/server/api.php';
 
 $tests = [];
 function test(string $name, callable $test): void { global $tests; $tests[$name] = $test; }

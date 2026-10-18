@@ -1,9 +1,12 @@
 RewriteEngine On
 
-RewriteRule ^data(?:/|$) - [F,L,NC]
-
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
+# Interne Weiterleitungen nach client/ und server/ nicht erneut umschreiben.
+RewriteCond %{ENV:REDIRECT_STATUS} !^$
 RewriteRule ^ - [L]
 
-RewriteRule ^ index.html [L]
+# Laufzeitdaten und Servercode sind nie direkt abrufbar.
+RewriteRule ^(?:data|server|client)(?:/|$) - [F,L,NC]
+
+# Die API liegt in server/, alle übrigen Dateien in client/.
+RewriteRule ^api\.php$ server/api.php [L]
+RewriteRule ^(.*)$ client/$1 [L]

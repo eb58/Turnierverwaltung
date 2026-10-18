@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-define('DATA_FILE', getenv('TURNIER_DATA_FILE') ?: __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'turniere.json');
+define('DATA_FILE', getenv('TURNIER_DATA_FILE') ?: dirname(__DIR__) . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'turniere.json');
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');

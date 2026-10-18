@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from '../../turnier-domain.js';
+import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from '../../client/turnier-domain.js';
 
 const teilnehmer = [1, 2, 3, 4, 5].map(id => ({ id, name: `Paar ${id}` }));
 const spiel = (a, b, punkteA, punkteB) => ({ a, b, punkteA, punkteB, sieger: punkteA > punkteB ? a : b, status: 'fertig' });

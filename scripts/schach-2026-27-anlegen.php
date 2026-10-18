@@ -4,7 +4,7 @@ declare(strict_types=1);
 // Bewusst nur lokal per CLI ausführen; keine Daten oder Verwaltungsaktion im Web anbieten.
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 if (!defined('TURNIER_API_NO_DISPATCH')) define('TURNIER_API_NO_DISPATCH', true);
-require_once dirname(__DIR__) . '/api.php';
+require_once dirname(__DIR__) . '/server/api.php';
 
 function schachSaison2026(int $id): array
 {

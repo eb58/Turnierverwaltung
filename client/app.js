@@ -167,7 +167,7 @@ const siegerurkundenDrucken = turnier => {
   const fenster = window.open('', '_blank');
   if (!fenster) { meldung('Das Urkundenfenster wurde vom Browser blockiert. Bitte Pop-ups für diese Seite erlauben.'); return; }
   const datum = new Intl.DateTimeFormat('de-DE', { dateStyle: 'long' }).format(new Date());
-  const logo = new URL('reinickendorf-wappen.svg', location.href).href;
+  const logo = new URL('assets/reinickendorf-wappen.svg', import.meta.url).href;
   const seiten = urkunden.map(urkunde => `
     <main class="urkunde">
       <div class="rahmen">

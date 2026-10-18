@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { schachErgebnisText, schachLetzterSpieltag, schachNachtragbar, schachPunkte, schachKreuztabelle } from '../../schach-domain.js';
-import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from '../../turnier-domain.js';
+import { schachErgebnisText, schachLetzterSpieltag, schachNachtragbar, schachPunkte, schachKreuztabelle } from '../../client/schach-domain.js';
+import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from '../../client/turnier-domain.js';
 
 const teilnehmer = [1, 2, 3, 4].map(id => ({ id, name: `Spieler ${id}`, spieler: [{ name: `Spieler ${id}` }] }));
 const spiel = (a, b, punkteA, punkteB) => ({ a, b, punkteA, punkteB, status: 'fertig', sieger: punkteA === punkteB ? null : punkteA > punkteB ? a : b });

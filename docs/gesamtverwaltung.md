@@ -43,4 +43,4 @@ Ein gelöschtes Turnier kann über **Sicherungen & Verlauf** aus einem früheren
 
 **Eigene PIN ändern** betrifft bei Anmeldung als Gesamtverwaltung die PIN der Gesamtverwaltung. Bisherige PIN und zweimal die neue PIN eingeben. Andere als Gesamtverwaltung angemeldete Geräte müssen sich anschließend neu anmelden. Zum Abschluss **Abmelden** wählen.
 
-Bei vergessener PIN der Gesamtverwaltung erfolgt das Zurücksetzen auf dem Server über `pin-einrichten.php`; siehe [README](../README.md#1-pin-der-gesamtverwaltung-einrichten).
+Bei vergessener PIN der Gesamtverwaltung erfolgt das Zurücksetzen auf dem Server über `server/pin-einrichten.php`; siehe [README](../README.md#1-pin-der-gesamtverwaltung-einrichten).

@@ -52,7 +52,7 @@ function leitungStarten(): void
     ini_set('session.gc_maxlifetime', '28800');
     session_save_path($dir);
     session_name('turnierleitung');
-    $pfad = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/api.php'));
+    $pfad = str_replace('\\', '/', dirname(parse_url($_SERVER['REQUEST_URI'] ?? '/api.php', PHP_URL_PATH) ?: '/api.php'));
     session_set_cookie_params(['lifetime' => 0, 'path' => rtrim($pfad, '/') . '/',
         'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off', 'httponly' => true, 'samesite' => 'Strict']);
     if (!session_start()) throw new ApiError('Die Anmeldung ist gerade nicht verfügbar.', 503);

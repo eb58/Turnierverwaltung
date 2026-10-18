@@ -38,9 +38,9 @@ const anfrage = async (action = '', method = 'GET', body, sitzung = leitung, ext
 
 before(async () => {
   tempOrdner = await mkdtemp(join(tmpdir(), 'turnier-api-test-'));
-  execFileSync('php', ['pin-einrichten.php', '--stdin'], { cwd: projekt, input: testPin, env: { ...process.env, TURNIER_DATA_FILE: join(tempOrdner, 'turniere.json') }, windowsHide: true });
+  execFileSync('php', ['server/pin-einrichten.php', '--stdin'], { cwd: projekt, input: testPin, env: { ...process.env, TURNIER_DATA_FILE: join(tempOrdner, 'turniere.json') }, windowsHide: true });
   const port = await freierPort(); basisUrl = `http://127.0.0.1:${port}`;
-  prozess = spawn('php', ['-S', `127.0.0.1:${port}`, 'router.php'], {
+  prozess = spawn('php', ['-S', `127.0.0.1:${port}`, '-t', 'client', 'server/router.php'], {
     cwd: projekt,
     env: { ...process.env, TURNIER_DATA_FILE: join(tempOrdner, 'turniere.json') },
     stdio: 'ignore',
@@ -222,10 +222,11 @@ test('Zuschauer lesen Turniere, können aber weder schreiben noch Sicherungen le
   }
   assert.equal((await anfrage('verlauf', 'GET', undefined, gast)).status, 401);
   assert.equal((await anfrage('stand&sicherung=../../leitung.json&seite=vorher', 'GET', undefined, gast)).status, 401);
-  for (const pfad of ['/data/turniere.json', '/data/leitung.json', '/data/anmeldeversuche.json', '/DATA/leitung.json', '/%64ata/leitung.json', '/data/sitzungen/test', '/data/sicherungen/test.json']) {
+  for (const pfad of ['/server/api.php', '/server/pin-einrichten.php', '/client/index.html', '/data/turniere.json', '/data/leitung.json', '/data/anmeldeversuche.json', '/DATA/leitung.json', '/%64ata/leitung.json', '/data/sitzungen/test', '/data/sicherungen/test.json']) {
     assert.equal((await fetch(basisUrl + pfad)).status, 403, pfad);
   }
   assert.equal((await fetch(`${basisUrl}/pin-einrichten.php`)).status, 404);
+  assert.equal((await fetch(`${basisUrl}/`)).status, 200);
   assert.equal(await readFile(join(tempOrdner, 'turniere.json'), 'utf8'), vorher);
   assert.equal((await anfrage('umbenennen&turnier=1', 'PUT', { version: 1, titel: 'Angriff' }, leitung, { 'X-CSRF-Token': 'falsch' })).status, 403);
   assert.equal((await anfrage('anmelden', 'POST', { pin: '000000' }, gast)).status, 401);

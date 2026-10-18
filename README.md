@@ -47,7 +47,7 @@ Alle Befehle im Projektverzeichnis ausführen.
 ### 1. PIN der Gesamtverwaltung einrichten
 
 ```powershell
-php pin-einrichten.php
+php server/pin-einrichten.php
 ```
 
 Das Skript erzeugt eine zufällige achtstellige PIN und zeigt sie einmal im Terminal an. Die PIN für die spätere Anmeldung aufbewahren. Gespeichert wird ausschließlich ihr Passwort-Hash.
@@ -56,14 +56,14 @@ Alternativ lässt sich eine eigene PIN mit 6 bis 12 Ziffern über die Standardei
 
 ```powershell
 $neueLeitungsPin = Read-Host 'Neue PIN der Gesamtverwaltung'
-$neueLeitungsPin | php pin-einrichten.php --stdin
+$neueLeitungsPin | php server/pin-einrichten.php --stdin
 Remove-Variable neueLeitungsPin
 ```
 
 Eine vorhandene PIN wird bei einem erneuten Aufruf nicht überschrieben. Zum bewussten Zurücksetzen der PIN der Gesamtverwaltung:
 
 ```powershell
-php pin-einrichten.php --zuruecksetzen
+php server/pin-einrichten.php --zuruecksetzen
 ```
 
 Die PINs der einzelnen Turnierleitungen bleiben dabei erhalten. `--zuruecksetzen` lässt sich mit `--stdin` kombinieren. Das Einrichtungsskript ist ausschließlich über die PHP-Kommandozeile ausführbar.
@@ -71,10 +71,10 @@ Die PINs der einzelnen Turnierleitungen bleiben dabei erhalten. `--zuruecksetzen
 ### 2. Webserver starten
 
 ```powershell
-php -S localhost:8001 router.php
+php -S localhost:8001 -t client server/router.php
 ```
 
-Anschließend <http://localhost:8001> öffnen. Der lokale Router sperrt den direkten Webzugriff auf `data/`. Zum Beenden des Servers im Terminal `Strg+C` drücken.
+Alternativ `npm start`. Anschließend <http://localhost:8001> öffnen. Der lokale Router liefert die Oberfläche aus `client/` und die API aus `server/` aus und sperrt den direkten Webzugriff auf `data/` und `server/`. Zum Beenden des Servers im Terminal `Strg+C` drücken.
 
 ### 3. Erstes Turnier anlegen
 
@@ -163,7 +163,7 @@ Unter **Sicherungen & Verlauf** können berechtigte Nutzer frühere Stände anse
 
 **Exportieren** sichert ein einzelnes Turnier als JSON. **Importieren** legt daraus ein zusätzliches Turnier an und ist der Gesamtverwaltung vorbehalten. PINs und Anmeldesitzungen sind nicht Bestandteil eines Turnierexports oder der automatischen Turniersicherungen. Für einen vollständigen Umzug oder eine zusätzliche Gesamtsicherung das gesamte `data/`-Verzeichnis kopieren.
 
-Das Datenverzeichnis ist nicht versioniert. Apache sperrt den direkten Zugriff über die mitgelieferte `.htaccess`; lokal übernimmt dies `router.php`. Bei einem anderen Webserver muss eine entsprechende Zugriffssperre eingerichtet werden.
+Das Datenverzeichnis ist nicht versioniert. Apache sperrt den direkten Zugriff über die mitgelieferte `.htaccess`; lokal übernimmt dies `server/router.php`. Bei einem anderen Webserver muss eine entsprechende Zugriffssperre eingerichtet werden.
 
 Die Umgebungsvariable `TURNIER_DATA_FILE` kann den Pfad der Turnierdatei ersetzen. PIN-Konfiguration, Sitzungen und Sicherungen werden dann ebenfalls im Verzeichnis dieser Datei angelegt. Die API-Tests nutzen dies für ein isoliertes temporäres Datenverzeichnis.
 
@@ -175,28 +175,32 @@ Anmeldungen verwenden CSRF-Token und Cookies mit `HttpOnly` und `SameSite=Strict
 
 ```text
 Turnierverwaltung/
-├── index.html                    # Oberfläche und Dialoge
-├── styles.css                    # Layout, mobile Ansicht und Druckdarstellung
-├── app.js                        # Bedienung, Darstellung und API-Anbindung
-├── turnier-domain.js             # Tabellen, Fortschritt und Platzierungen
-├── schach-domain.js              # Schachwertung und Kreuztabelle
-├── schach-spieltag.js             # Oberfläche für Auslosung und Spieltagshistorie
-├── api.php                       # HTTP-API und gemeinsame Turnierlogik
-├── schach.php                    # Schachspielplan, Ergebnisse und Validierung
-├── schach-auslosung.php           # Tagesauslosung und Spieltagsverwaltung
-├── speicher.php                  # JSON-Speicher, Sperren und Sicherungen
-├── leitung.php                   # PINs, Sitzungen und Berechtigungen
-├── pin-einrichten.php            # CLI zur Einrichtung der PIN der Gesamtverwaltung
-├── router.php                    # Router für den lokalen PHP-Webserver
-├── .htaccess                     # Apache-Routing und Sperre des Datenverzeichnisses
+├── client/                       # Browser-Oberfläche (statische Dateien)
+│   ├── index.html                # Oberfläche und Dialoge
+│   ├── styles.css                # Layout, mobile Ansicht und Druckdarstellung
+│   ├── app.js                    # Bedienung, Darstellung und API-Anbindung
+│   ├── turnier-domain.js         # Tabellen, Fortschritt und Platzierungen
+│   ├── schach-domain.js          # Schachwertung und Kreuztabelle
+│   ├── schach-spieltag.js        # Oberfläche für Auslosung und Spieltagshistorie
+│   └── assets/                   # Wappen und SVG-Motive für Turnieranzeige und Urkunden
+├── server/                       # PHP-Backend (nicht direkt per Web abrufbar)
+│   ├── api.php                   # HTTP-API und gemeinsame Turnierlogik
+│   ├── schach.php                # Schachspielplan, Ergebnisse und Validierung
+│   ├── schach-auslosung.php      # Tagesauslosung und Spieltagsverwaltung
+│   ├── speicher.php              # JSON-Speicher, Sperren und Sicherungen
+│   ├── leitung.php               # PINs, Sitzungen und Berechtigungen
+│   ├── pin-einrichten.php        # CLI zur Einrichtung der PIN der Gesamtverwaltung
+│   └── router.php                # Router für den lokalen PHP-Webserver
+├── data/                         # Laufzeitdaten; wird automatisch angelegt
+├── .htaccess                     # Apache: leitet auf client/ bzw. server/api.php um, sperrt data/ und server/
 ├── deploy.ps1                    # Deployment über SSH/SCP
-├── package.json                  # Befehle für Syntaxprüfung und Tests
-├── assets/                       # SVG-Motive für Turnieranzeige und Urkunden
+├── package.json                  # Befehle für Start, Syntaxprüfung und Tests
 ├── docs/                         # Kurzanleitungen für Turnierleitung und Gesamtverwaltung
 ├── scripts/                      # CLI für die bestehende Schachsaison
-├── tests/                        # JavaScript-, PHP- und API-Tests
-└── data/                         # Lokale Laufzeitdaten; wird automatisch angelegt
+└── tests/                        # JavaScript-, PHP- und API-Tests
 ```
+
+Die öffentlichen Adressen sind unabhängig von dieser Aufteilung: Die Oberfläche liegt unter `/`, die API unter `/api.php`.
 
 ## Tests
 
@@ -250,15 +254,15 @@ Zuerst die geplanten Dateien und das Ziel ohne Upload anzeigen:
 .\deploy.ps1 -WhatIfOnly
 ```
 
-Für die Übertragung müssen SSH-Zugang und die lokale `data/leitung.json` vorhanden sein. Letztere wird mit `php pin-einrichten.php` angelegt.
+Für die Übertragung müssen SSH-Zugang und die lokale `data/leitung.json` vorhanden sein. Letztere wird mit `php server/pin-einrichten.php` angelegt.
 
 ```powershell
 .\deploy.ps1
 ```
 
-Das Skript lädt zuerst die `.htaccess` mit der Zugriffssperre für `data/` und anschließend die Anwendungsdateien hoch. Vorhandene Turniere, Sicherungen und PIN-Konfigurationen auf dem Server bleiben erhalten. Nur wenn dort noch keine `data/leitung.json` existiert, wird die lokale PIN-Konfiguration übernommen. Lokale Turnierdaten werden nicht automatisch übertragen; dafür Export und Import verwenden.
+Das Skript spiegelt die lokale Struktur: Es lädt zuerst `server/` und `client/`, danach die `.htaccess` hoch und entfernt anschließend Dateien der früheren, flachen Struktur. Vorhandene Turniere, Sicherungen und PIN-Konfigurationen auf dem Server bleiben erhalten. Nur wenn dort noch keine `data/leitung.json` existiert, wird die lokale PIN-Konfiguration übernommen. Lokale Turnierdaten werden nicht automatisch übertragen; dafür Export und Import verwenden.
 
-Die lokale `router.php`, Tests und Saison-Skripte werden nicht hochgeladen. Apache verwendet die `.htaccess`. Ein anderes Ziel lässt sich mit den Parametern `-Server`, `-User`, `-Port`, `-Webroot` und `-AppPath` angeben.
+`server/router.php`, Tests und Saison-Skripte werden nicht hochgeladen. Apache verwendet die `.htaccess`. Ein anderes Ziel lässt sich mit den Parametern `-Server`, `-User`, `-Port`, `-Webroot` und `-AppPath` angeben.
 
 ## Bildquelle
 
