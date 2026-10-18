@@ -1,6 +1,6 @@
 import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=6';
 import { istSchach, schachErgebnisText, schachPunkte, schachKreuztabelle } from './schach-domain.js?v=5';
-import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=7';
+import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=8';
 
 const $ = id => document.getElementById(id);
 const el = (tag, text, className = '') => {
@@ -484,7 +484,7 @@ const renderDetails = () => {
   }
 
   if (istSchach(turnier)) {
-    const historie = renderSchachHistorie(turnier, el);
+    const historie = renderSchachHistorie(turnier, { el, bearbeiten: darfBearbeiten(), ergebnisForm: renderSchachErgebnis });
     if (historie) details.append(historie);
     return;
   }

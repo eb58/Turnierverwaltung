@@ -1,9 +1,15 @@
 import { schachErgebnisText, schachPunkte } from './schach-domain.js?v=5';
 
-export const renderSchachHistorie = (turnier, el) => {
+const historieOffen = new Map();
+const datumText = datum => datum.split('-').reverse().join('.');
+
+export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm }) => {
   const tage = [...(turnier.historischeSpieltage ?? []), ...(turnier.spieltage ?? []).filter(tag => tag.status === 'beendet')]
     .sort((a, b) => a.datum.localeCompare(b.datum));
   if (!tage.length) return null;
+  // Offene Partien eines beendeten Spieltags können neu ausgelost werden; maßgeblich ist der letzte Spieltag mit der Partie.
+  const letzterTag = new Map();
+  for (const tag of turnier.spieltage ?? []) for (const gruppe of tag.gruppen) for (const id of gruppe.spiele) letzterTag.set(id, tag);
   const section = el('section', undefined, 'spieltag-historie');
   section.append(el('h3', `Bisherige Spieltage (${tage.length})`));
   const namen = new Map(turnier.teilnehmer.map(p => [p.id, p.name]));
@@ -11,9 +17,12 @@ export const renderSchachHistorie = (turnier, el) => {
   const spiele = new Map(turnier.runden.flat().map(s => [s.id, s]));
   tage.forEach((tag, index) => {
     const details = el('details', undefined, 'vergangener-spieltag');
-    const [jahr, monat, datum] = tag.datum.split('-');
     const anzahl = tag.paarungen ? tag.paarungen.length * 2 : tag.gruppen.reduce((n, g) => n + g.spiele.length, 0);
-    details.append(el('summary', `${index + 1}. Spieltag · ${datum}.${monat}.${jahr} · ${anzahl} Partien · beendet`));
+    const nachtragbar = (tag.gruppen ?? []).flatMap(g => g.spiele).filter(id => letzterTag.get(id) === tag && spiele.get(id).status !== 'fertig').length;
+    details.open = historieOffen.get(tag.id) ?? false;
+    details.addEventListener('toggle', () => historieOffen.set(tag.id, details.open));
+    details.append(el('summary', `${index + 1}. Spieltag · ${datumText(tag.datum)} · ${anzahl} Partien · beendet${nachtragbar ? ` · ${nachtragbar} offen` : ''}`));
+    if (bearbeiten && nachtragbar) details.append(el('p', 'Offene Partien dieses Spieltags können hier nachgetragen werden, solange sie nicht an einem späteren Spieltag neu ausgelost wurden.', 'hint management-only'));
     details.append(el('p', `${tag.anwesenheitVollstaendig === false ? 'Mitgespielt' : 'Anwesend'}: ${tag.anwesend.map(id => namen.get(id)).join(', ')}`, 'muted'));
     const tabelle = el('table'), head = el('thead'), kopf = el('tr');
     for (const titel of ['Paarung', tag.paarungen ? 'Hin- und Rückspiel gesamt' : 'Ergebnis']) {
@@ -28,8 +37,11 @@ export const renderSchachHistorie = (turnier, el) => {
     }
     for (const gruppe of tag.gruppen ?? []) {
       for (const id of gruppe.spiele) {
-        const s = spiele.get(id), row = el('tr');
-        row.append(el('td', `${namen.get(s.a)} (Weiß) – ${namen.get(s.b)} (Schwarz)`), el('td', s.status === 'fertig' ? schachErgebnisText(s) : 'offen'));
+        const s = spiele.get(id), row = el('tr'), zelle = el('td'), spaeter = letzterTag.get(id);
+        if (spaeter && spaeter !== tag) zelle.textContent = `neu ausgelost am ${datumText(spaeter.datum)}`;
+        else if (bearbeiten) zelle.append(ergebnisForm(turnier, s, `Spieltag ${tag.datum}`, namen));
+        else zelle.textContent = s.status === 'fertig' ? schachErgebnisText(s) : 'offen';
+        row.append(el('td', `${namen.get(s.a)} (Weiß) – ${namen.get(s.b)} (Schwarz)`), zelle);
         body.append(row);
       }
       for (const frei of gruppe.freiePaarungen) {
@@ -143,7 +155,11 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
     if (bearbeiten && aktiv) {
       const ende = el('button', 'Spieltag beenden', 'secondary management-only'); ende.type = 'button';
       ende.addEventListener('click', async () => {
-        if (busy() || !await bestaetigen({ titel: 'Spieltag beenden?', text: 'Ergebnisse bleiben erhalten. Offene Partien stehen an späteren Spieltagen wieder zur Verfügung.', bestaetigung: 'Spieltag beenden' })) return;
+        const offen = letzter.gruppen.flatMap(gruppe => gruppe.spiele).filter(id => spiele.get(id)?.status !== 'fertig').length;
+        const text = offen
+          ? `Noch ${offen === 1 ? 'ist 1 Partie' : `sind ${offen} Partien`} ohne Ergebnis. Sie können unter „Bisherige Spieltage“ nachgetragen werden, bis sie an einem späteren Spieltag neu ausgelost werden.`
+          : 'Ergebnisse bleiben erhalten.';
+        if (busy() || !await bestaetigen({ titel: 'Spieltag beenden?', text, bestaetigung: 'Spieltag beenden' })) return;
         setBusy(true);
         try { aktualisieren((await request(`spieltag-beenden&turnier=${turnier.id}`, { method: 'POST', body: JSON.stringify({ version: turnier.version }) })).turnier); meldung('Spieltag beendet.', 'erfolg'); }
         catch (error) { meldung(error.message); }
