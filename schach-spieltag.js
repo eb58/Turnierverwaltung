@@ -1,4 +1,4 @@
-import { schachErgebnisText, schachPunkte } from './schach-domain.js?v=5';
+import { schachErgebnisText, schachLetzterSpieltag, schachNachtragbar, schachPunkte } from './schach-domain.js?v=6';
 
 const historieOffen = new Map();
 const datumText = datum => datum.split('-').reverse().join('.');
@@ -7,9 +7,7 @@ export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm }) 
   const tage = [...(turnier.historischeSpieltage ?? []), ...(turnier.spieltage ?? []).filter(tag => tag.status === 'beendet')]
     .sort((a, b) => a.datum.localeCompare(b.datum));
   if (!tage.length) return null;
-  // Offene Partien eines beendeten Spieltags können neu ausgelost werden; maßgeblich ist der letzte Spieltag mit der Partie.
-  const letzterTag = new Map();
-  for (const tag of turnier.spieltage ?? []) for (const gruppe of tag.gruppen) for (const id of gruppe.spiele) letzterTag.set(id, tag);
+  const letzterTag = schachLetzterSpieltag(turnier);
   const section = el('section', undefined, 'spieltag-historie');
   section.append(el('h3', `Bisherige Spieltage (${tage.length})`));
   const namen = new Map(turnier.teilnehmer.map(p => [p.id, p.name]));
@@ -18,7 +16,7 @@ export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm }) 
   tage.forEach((tag, index) => {
     const details = el('details', undefined, 'vergangener-spieltag');
     const anzahl = tag.paarungen ? tag.paarungen.length * 2 : tag.gruppen.reduce((n, g) => n + g.spiele.length, 0);
-    const nachtragbar = (tag.gruppen ?? []).flatMap(g => g.spiele).filter(id => letzterTag.get(id) === tag && spiele.get(id).status !== 'fertig').length;
+    const nachtragbar = schachNachtragbar(turnier, tag, letzterTag).length;
     details.open = historieOffen.get(tag.id) ?? false;
     details.addEventListener('toggle', () => historieOffen.set(tag.id, details.open));
     details.append(el('summary', `${index + 1}. Spieltag · ${datumText(tag.datum)} · ${anzahl} Partien · beendet${nachtragbar ? ` · ${nachtragbar} offen` : ''}`));

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { schachErgebnisText, schachPunkte, schachKreuztabelle } from '../../schach-domain.js';
+import { schachErgebnisText, schachLetzterSpieltag, schachNachtragbar, schachPunkte, schachKreuztabelle } from '../../schach-domain.js';
 import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from '../../turnier-domain.js';
 
 const teilnehmer = [1, 2, 3, 4].map(id => ({ id, name: `Spieler ${id}`, spieler: [{ name: `Spieler ${id}` }] }));
@@ -87,4 +87,22 @@ test('Kreuztabelle und direkter Vergleich berücksichtigen beide Durchgänge', (
   assert.equal(tabelle.find(zeile => zeile.id === 1).direkt, 0);
   assert.equal(tabelle.find(zeile => zeile.id === 2).direkt, 0);
   assert.equal(tabelle[0].rang, tabelle[1].rang);
+});
+
+test('Offene Partien beendeter Spieltage sind nur nachtragbar, solange sie nicht neu ausgelost wurden', () => {
+  const partie = (id, a, b, status = 'offen') => ({ id, a, b, status, punkteA: status === 'fertig' ? 1 : null, punkteB: status === 'fertig' ? 0 : null });
+  const t = { ...turnier([[partie('p1', 1, 2, 'fertig'), partie('p2', 3, 4)], [partie('p3', 1, 3), partie('p4', 2, 4)]]),
+    spieltage: [
+      { id: 'tag1', status: 'beendet', gruppen: [{ spiele: ['p1'] }, { spiele: ['p2'] }, { spiele: ['p3'] }] },
+      { id: 'tag2', status: 'aktiv', gruppen: [{ spiele: ['p3'] }, { spiele: ['p4'] }] },
+    ] };
+  const [tag1, tag2] = t.spieltage;
+  const letzter = schachLetzterSpieltag(t);
+  assert.equal(letzter.get('p1'), tag1);
+  assert.equal(letzter.get('p3'), tag2);
+  assert.deepEqual(schachNachtragbar(t, tag1), ['p2']);
+  assert.deepEqual(schachNachtragbar(t, tag2), ['p3', 'p4']);
+  t.runden[0][1] = partie('p2', 3, 4, 'fertig');
+  assert.deepEqual(schachNachtragbar(t, tag1), []);
+  assert.deepEqual(schachNachtragbar({ ...t, spieltage: [] }, { datum: '2025-01-01', paarungen: ['1-2'] }), []);
 });

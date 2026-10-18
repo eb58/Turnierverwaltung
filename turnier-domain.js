@@ -1,4 +1,4 @@
-import { istSchach, schachTabelle } from './schach-domain.js?v=5';
+import { istSchach, schachTabelle } from './schach-domain.js?v=6';
 
 export const turnierFortschritt = turnier => {
   const spiele = turnier.runden.flat().filter(spiel => spiel.status !== 'freilos');

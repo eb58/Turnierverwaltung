@@ -1,6 +1,6 @@
-import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=6';
-import { istSchach, schachErgebnisText, schachPunkte, schachKreuztabelle } from './schach-domain.js?v=5';
-import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=10';
+import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=7';
+import { istSchach, schachErgebnisText, schachPunkte, schachKreuztabelle } from './schach-domain.js?v=6';
+import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=11';
 
 const $ = id => document.getElementById(id);
 const el = (tag, text, className = '') => {

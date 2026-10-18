@@ -453,3 +453,141 @@ test('API speichert Anwesenheit, Dreiergruppe und Spieltagsabschluss versionssic
   const vorschau = (await anfrage(`stand&sicherung=${auslosung.id}&seite=nachher`)).payload;
   assert.equal(vorschau.turnier.spieltage.length, 2);
 });
+
+test('Schachturnier wird über Spieltage mit Nachträgen vollständig abgeschlossen und sperrt dann neue Spieltage', async () => {
+  const teilnehmer = ['Greta', 'Ben', 'Clara', 'David'].map(name => ({ spieler: [{ name }] }));
+  let turnier = (await anfrage('anlegen', 'POST', { titel: 'Abschlusstest', sportart: 'schach', modus: 'jeder-gegen-jeden', teilnehmer })).payload.turnier;
+  const alle = turnier.teilnehmer.map(person => person.id);
+  const ergebnis = async (spielId, punkteA, punkteB) => {
+    const antwort = await anfrage(`ergebnis&turnier=${turnier.id}&spiel=${spielId}`, 'PUT', { version: turnier.version, punkteA, punkteB });
+    assert.equal(antwort.status, 200, antwort.payload.error); turnier = antwort.payload.turnier;
+  };
+  const auslosen = async (datum, anwesend) => anfrage(`auslosen&turnier=${turnier.id}`, 'POST', { version: turnier.version, datum, anwesend, freiePartien: false });
+  const beenden = async () => {
+    const antwort = await anfrage(`spieltag-beenden&turnier=${turnier.id}`, 'POST', { version: turnier.version });
+    assert.equal(antwort.status, 200); turnier = antwort.payload.turnier;
+  };
+  const offen = () => turnier.runden.flat().filter(spiel => spiel.status === 'offen');
+
+  // Erster Spieltag: nur eine von zwei Partien gespeichert, dann beendet.
+  let antwort = await auslosen('2026-10-04', alle);
+  assert.equal(antwort.status, 200); turnier = antwort.payload.turnier;
+  const [erste, zweite] = turnier.spieltage[0].gruppen.map(gruppe => gruppe.spiele[0]);
+  await ergebnis(erste, 1, 0);
+  await beenden();
+  assert.equal(turnier.spieltage[0].status, 'beendet');
+
+  // Nachtrag und Korrektur nach Spieltagsende.
+  await ergebnis(zweite, 0.5, 0.5);
+  await ergebnis(erste, 0, 1);
+  const nachgetragen = turnier.runden.flat().find(spiel => spiel.id === zweite);
+  assert.deepEqual([nachgetragen.status, nachgetragen.sieger], ['fertig', null]);
+  assert.equal(turnier.runden.flat().find(spiel => spiel.id === erste).sieger, turnier.runden.flat().find(spiel => spiel.id === erste).b);
+  assert.equal(turnier.spieltage.length, 1);
+
+  // Weitere Spieltage, bis alle Partien gespielt sind.
+  for (let tag = 1; offen().length; tag++) {
+    const naechste = offen()[0];
+    antwort = await auslosen(`2026-11-${String(tag).padStart(2, '0')}`, [naechste.a, naechste.b]);
+    assert.equal(antwort.status, 200, antwort.payload.error); turnier = antwort.payload.turnier;
+    for (const id of turnier.spieltage.at(-1).gruppen.flatMap(gruppe => gruppe.spiele)) await ergebnis(id, 1, 0);
+    await beenden();
+  }
+  assert.equal(turnier.runden.flat().filter(spiel => spiel.status === 'fertig').length, 6);
+  assert.ok(turnier.spieltage.every(tag => tag.status === 'beendet'));
+
+  // Abgeschlossen: kein neuer Spieltag, Korrektur bleibt möglich.
+  for (const freiePartien of [false, true]) {
+    antwort = await anfrage(`auslosen&turnier=${turnier.id}`, 'POST', { version: turnier.version, datum: '2026-12-01', anwesend: alle, freiePartien });
+    assert.equal(antwort.status, 400);
+    assert.equal(antwort.payload.error, 'Das Turnier ist abgeschlossen. Alle Partien sind gespielt.');
+  }
+  await ergebnis(zweite, 1, 0);
+
+  // Ein gelöschtes Ergebnis öffnet das Turnier wieder für die Auslosung.
+  await ergebnis(zweite, null, null);
+  const wieder = turnier.runden.flat().find(spiel => spiel.id === zweite);
+  antwort = await auslosen('2026-12-01', [wieder.a, wieder.b]);
+  assert.equal(antwort.status, 200, antwort.payload.error);
+  assert.deepEqual(antwort.payload.turnier.spieltage.at(-1).gruppen.flatMap(gruppe => gruppe.spiele), [zweite]);
+});
+
+const schachTurnier = async (titel, extra = {}) => {
+  const teilnehmer = ['Greta', 'Ben', 'Clara', 'David'].map(name => ({ spieler: [{ name }] }));
+  const turnier = (await anfrage('anlegen', 'POST', { titel, sportart: 'schach', modus: 'jeder-gegen-jeden', teilnehmer, ...extra })).payload.turnier;
+  let stand = turnier;
+  const schritt = async (action, method, body) => {
+    const antwort = await anfrage(`${action}&turnier=${stand.id}`, method, { version: stand.version, ...body });
+    if (antwort.status === 200) stand = antwort.payload.turnier;
+    return antwort;
+  };
+  return {
+    stand: () => stand,
+    auslosen: (datum, anwesend) => schritt('auslosen', 'POST', { datum, anwesend, freiePartien: false }),
+    ergebnis: (id, punkteA, punkteB) => schritt(`ergebnis&spiel=${encodeURIComponent(id)}`, 'PUT', { punkteA, punkteB }),
+    beenden: () => schritt('spieltag-beenden', 'POST', {}),
+  };
+};
+
+test('Sicherung mit einer an einem späteren Spieltag neu ausgelosten Partie lässt sich importieren', async () => {
+  const t = await schachTurnier('Importtest Neuauslosung');
+  const alle = t.stand().teilnehmer.map(person => person.id);
+  assert.equal((await t.auslosen('2026-11-01', alle)).status, 200);
+  const offen = t.stand().spieltage[0].gruppen[0];
+  assert.equal((await t.beenden()).status, 200);
+  assert.equal((await t.auslosen('2026-11-08', offen.spieler)).status, 200);
+  const [tag1, tag2] = t.stand().spieltage;
+  assert.deepEqual(tag2.gruppen.flatMap(gruppe => gruppe.spiele), offen.spiele);
+  assert.ok(tag1.gruppen.flatMap(gruppe => gruppe.spiele).includes(offen.spiele[0]));
+  const importiert = await anfrage('importieren', 'POST', { format: 'turnierverwaltung-backup', version: 1, turnier: t.stand() });
+  assert.equal(importiert.status, 201, importiert.payload.error);
+  assert.deepEqual(importiert.payload.turnier.spieltage, t.stand().spieltage);
+});
+
+test('Bei Hin- und Rückspiel ist das Turnier erst nach beiden Partien jeder Paarung abgeschlossen', async () => {
+  const t = await schachTurnier('Hin- und Rückspiel bis zum Abschluss', { durchgaenge: 2 });
+  assert.equal(t.stand().runden.flat().length, 12);
+  // Erster Spieltag: nur das Hinspiel jeder Paarung wird gespielt.
+  assert.equal((await t.auslosen('2026-11-01', t.stand().teilnehmer.map(person => person.id))).status, 200);
+  for (const gruppe of t.stand().spieltage[0].gruppen) {
+    assert.equal(gruppe.spiele.length, 2);
+    assert.equal((await t.ergebnis(gruppe.spiele[0], 1, 0)).status, 200);
+  }
+  assert.equal((await t.beenden()).status, 200);
+  const offen = () => t.stand().runden.flat().filter(spiel => spiel.status === 'offen');
+  assert.equal(offen().length, 10);
+  for (let tag = 2; offen().length; tag++) {
+    const naechste = offen()[0];
+    const antwort = await t.auslosen(`2026-11-${String(tag).padStart(2, '0')}`, [naechste.a, naechste.b]);
+    assert.equal(antwort.status, 200, antwort.payload.error);
+    const spiele = t.stand().spieltage.at(-1).gruppen.flatMap(gruppe => gruppe.spiele);
+    assert.ok(spiele.every(id => t.stand().runden.flat().find(spiel => spiel.id === id).status === 'offen'));
+    for (const id of spiele) await t.ergebnis(id, 0.5, 0.5);
+    // Solange noch eine Partie offen ist, bleibt eine weitere Auslosung möglich.
+    assert.equal((await t.beenden()).status, 200);
+  }
+  assert.equal(t.stand().runden.flat().filter(spiel => spiel.status === 'fertig').length, 12);
+  const gesperrt = await t.auslosen('2026-12-01', t.stand().teilnehmer.map(person => person.id));
+  assert.equal(gesperrt.status, 400);
+  assert.equal(gesperrt.payload.error, 'Das Turnier ist abgeschlossen. Alle Partien sind gespielt.');
+});
+
+test('Neu auslosen ist erst wieder möglich, wenn alle Ergebnisse des laufenden Spieltags gelöscht sind', async () => {
+  const t = await schachTurnier('Neu auslosen nach Löschen');
+  const alle = t.stand().teilnehmer.map(person => person.id);
+  assert.equal((await t.auslosen('2026-11-01', alle)).status, 200);
+  const [erste, zweite] = t.stand().spieltage[0].gruppen.map(gruppe => gruppe.spiele[0]);
+  assert.equal((await t.ergebnis(erste, 1, 0)).status, 200);
+  assert.equal((await t.ergebnis(zweite, 0, 1)).status, 200);
+  assert.equal((await t.auslosen('2026-11-01', alle)).status, 400);
+  assert.equal((await t.ergebnis(erste, null, null)).status, 200);
+  const nochGesperrt = await t.auslosen('2026-11-01', alle);
+  assert.equal(nochGesperrt.status, 400);
+  assert.match(nochGesperrt.payload.error, /laufenden Spieltag beenden/);
+  assert.equal((await t.ergebnis(zweite, null, null)).status, 200);
+  const neu = await t.auslosen('2026-11-02', alle);
+  assert.equal(neu.status, 200, neu.payload.error);
+  assert.equal(t.stand().spieltage.length, 1);
+  assert.equal(t.stand().spieltage[0].datum, '2026-11-02');
+  assert.equal(t.stand().runden.flat().filter(spiel => spiel.status === 'fertig').length, 0);
+});

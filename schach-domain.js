@@ -6,6 +6,18 @@ export const schachErgebnisText = spiel => spiel.altErgebnis
   ? `${schachPunkte(spiel.altErgebnis.punkteA)}:${schachPunkte(spiel.altErgebnis.punkteB)} gesamt (Hin- und Rückspiel)`
   : `${schachPunkte(spiel.punkteA)}:${schachPunkte(spiel.punkteB)}`;
 
+// Offene Partien eines beendeten Spieltags können neu ausgelost werden; maßgeblich ist der letzte Spieltag mit der Partie.
+export const schachLetzterSpieltag = turnier => {
+  const letzter = new Map();
+  for (const tag of turnier.spieltage ?? []) for (const gruppe of tag.gruppen) for (const id of gruppe.spiele) letzter.set(id, tag);
+  return letzter;
+};
+
+export const schachNachtragbar = (turnier, tag, letzter = schachLetzterSpieltag(turnier)) => {
+  const spiele = new Map(turnier.runden.flat().map(spiel => [spiel.id, spiel]));
+  return (tag.gruppen ?? []).flatMap(gruppe => gruppe.spiele).filter(id => letzter.get(id) === tag && spiele.get(id)?.status !== 'fertig');
+};
+
 export const schachKreuztabelle = turnier => {
   const nachId = new Map(turnier.teilnehmer.map(person => [person.id, new Map()]));
   turnier.runden.forEach((runde, index) => runde.forEach(spiel => {
