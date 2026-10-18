@@ -94,12 +94,14 @@ dialog strong { color: var(--accent-dark); }
 .dialog-aktionen { display: flex; justify-content: flex-end; gap: .65rem; }
 .breiter-dialog { width: min(820px, calc(100% - 2rem)); max-height: calc(100% - 2rem); }
 .breiter-dialog form { max-height: calc(100vh - 2rem); overflow: auto; }
-.turnier-dialog { width: min(1100px, calc(100% - 2rem)); max-height: calc(100% - 2rem); overflow: hidden; }
-.turnier-dialog form { max-height: calc(100vh - 2rem); overflow-y: auto; overscroll-behavior: contain; }
-.turnier-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.turnier-dialog { width: min(1100px, calc(100% - 2rem)); max-height: calc(100vh - 2rem); max-height: calc(100dvh - 2rem); overflow: hidden; }
+.turnier-dialog .turnier-form { display: flex; flex-direction: column; max-height: calc(100vh - 2rem - 2px); max-height: calc(100dvh - 2rem - 2px); padding: 0; gap: 0; overflow: hidden; }
+.turnier-dialog-kopf { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .65rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); }
+.turnier-dialog-kopf h2 { font-size: clamp(1.1rem, 3vw, 1.5rem); }
+.turnier-form-inhalt { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; min-height: 0; padding: 1.25rem; overflow-y: auto; overscroll-behavior: contain; }
 .turnier-form label { display: grid; gap: .35rem; font-weight: 650; }
-.turnier-form > .wide.toolbar:last-child { position: sticky; z-index: 2; bottom: -1.25rem; margin: 0 -1.25rem -1.25rem; padding: .85rem 1.25rem; background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -8px 18px rgba(15, 23, 42, .08); }
-.turnier-form > .wide.toolbar:last-child #anzahl { margin-right: auto; }
+.turnier-form-aktionen { flex-shrink: 0; padding: .85rem 1.25rem; padding-bottom: max(.85rem, env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -8px 18px rgba(15, 23, 42, .08); }
+.turnier-form-aktionen #anzahl { margin-right: auto; }
 .wide { grid-column: 1 / -1; min-width: 0; }
 .paare { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: .8rem; }
 .paar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .45rem .6rem; padding: .65rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
@@ -213,7 +215,8 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
   .panel { padding: .8rem; }
   .turnier-titel { gap: .6rem; }
   .sportart-motiv { width: 48px; height: 36px; }
-  .turnier-form { grid-template-columns: 1fr; }
+  .turnier-form-inhalt { grid-template-columns: 1fr; }
+  .turnier-form-aktionen #anzahl { flex-basis: 100%; }
   .vergangener-spieltag thead { display: none; }
   .vergangener-spieltag tr { display: block; padding: .45rem 0; border-bottom: 1px solid var(--border); }
   .vergangener-spieltag td { display: block; padding: .2rem 0; border: 0; white-space: normal; }

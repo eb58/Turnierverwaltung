@@ -47,6 +47,8 @@ const auswahl = $('turnierAuswahl');
 const appDialog = $('appDialog');
 const turnierDialog = $('turnierDialog');
 let bearbeitetesTurnierId = null;
+let turnierFormAusgangsstand = '';
+const turnierFormStand = () => JSON.stringify([...form.querySelectorAll('input, select')].map(feld => [feld.name, feld.value]));
 let dialogResolve;
 
 const dialogBeenden = wert => {
@@ -663,6 +665,7 @@ const turnierFormOeffnen = turnier => {
   paare.querySelectorAll('.paar-loeschen').forEach(button => { button.hidden = begonnen; });
   $('turnierFormTitel').textContent = 'Turnier bearbeiten';
   $('turnierSpeichern').textContent = 'Änderungen speichern';
+  turnierFormAusgangsstand = turnierFormStand();
   turnierDialog.showModal();
 };
 
@@ -705,7 +708,19 @@ form.addEventListener('submit', async event => {
   finally { setBusy(false); }
 });
 
-$('neuesTurnier').addEventListener('click', () => { turnierFormZuruecksetzen(); turnierDialog.showModal(); });
+$('neuesTurnier').addEventListener('click', () => { turnierFormZuruecksetzen(); turnierFormAusgangsstand = turnierFormStand(); turnierDialog.showModal(); });
+$('turnierZumMenue').addEventListener('click', async event => {
+  event.stopPropagation();
+  if (state.busy) return;
+  if (turnierFormStand() !== turnierFormAusgangsstand && !await dialogOeffnen({
+    titel: 'Eingaben verwerfen?',
+    text: 'Die Änderungen am Turnier sind noch nicht gespeichert. Zurück zum Menü gehen und diese Eingaben verwerfen?',
+    bestaetigung: 'Verwerfen und zum Menü',
+    gefahr: true,
+  })) return;
+  turnierDialog.close(); turnierFormZuruecksetzen(); menueOeffnen(true);
+  $('menueUmschalten').focus();
+});
 $('turnierBearbeiten').addEventListener('click', () => {
   const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
   if (turnier) turnierFormOeffnen(turnier);

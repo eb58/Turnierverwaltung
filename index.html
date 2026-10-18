@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f766e">
   <title>Turnierverwaltung</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230f766e'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='white'%3E%E2%86%94%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css?v=30">
+  <link rel="stylesheet" href="styles.css?v=31">
 </head>
 <body class="zuschauer">
   <div class="app-layout">
@@ -123,49 +123,54 @@
 
     <dialog id="turnierDialog" class="turnier-dialog" aria-labelledby="turnierFormTitel">
       <form id="turnierForm" class="turnier-form">
-        <h2 id="turnierFormTitel" class="wide">Neues Turnier anlegen</h2>
-        <label>Sportart
-          <select name="sportart">
-            <option value="tischtennis">Tischtennis-Doppel</option>
-            <option value="schach">Schach</option>
-          </select>
-        </label>
-        <label>Turniername
-          <input name="titel" required maxlength="100" placeholder="z. B. Herbstturnier">
-        </label>
-        <label>Modus
-          <select name="modus">
-            <option value="jeder-gegen-jeden">Jeder gegen jeden</option>
-            <option value="ko">K.-o.-System</option>
-          </select>
-        </label>
-        <label id="spielwertungFeld">Spielwertung
-          <select name="gewinnsaetze">
-            <option value="2">2 Gewinnsätze (Best of 3)</option>
-            <option value="3">3 Gewinnsätze (Best of 5)</option>
-          </select>
-        </label>
-        <label id="erfassungsartFeld">Ergebniserfassung
-          <select name="satzweise">
-            <option value="0">Nur Satzergebnis (z. B. 2:1)</option>
-            <option value="1">Sätze einzeln erfassen</option>
-          </select>
-        </label>
-        <label><span id="tischanzahlLabel">Verfügbare Tische (optional)</span>
-          <input name="anzahlTische" type="number" min="1" max="32" placeholder="offen">
-        </label>
-        <label id="schachDurchgaengeFeld" hidden>Schachbegegnungen
-          <select name="durchgaenge"><option value="2">Hin- und Rückspiel (Farbenwechsel)</option><option value="1">Eine Partie pro Paarung</option></select>
-        </label>
-        <p id="schachHinweis" class="hint wide" hidden>Sieg: 1 Punkt · Remis: ½ Punkt · Niederlage: 0 Punkte. Jeder gegen jeden. Anwesende Spieler können an jedem Spieltag neu ausgelost werden.</p>
-        <div class="wide">
-          <p id="teilnehmerHinweis" class="hint">Je Doppelpaar die Namen der beiden Spieler eingeben. Möglich sind 5 bis 32 Doppelpaare.</p>
-          <div id="paare" class="paare"></div>
-          <div class="toolbar actions">
-            <button id="paarHinzufuegen" class="secondary" type="button">Paar hinzufügen</button>
+        <header class="turnier-dialog-kopf">
+          <h2 id="turnierFormTitel">Neues Turnier anlegen</h2>
+          <button id="turnierZumMenue" class="secondary" type="button">Zurück zum Menü</button>
+        </header>
+        <div class="turnier-form-inhalt">
+          <label>Sportart
+            <select name="sportart">
+              <option value="tischtennis">Tischtennis-Doppel</option>
+              <option value="schach">Schach</option>
+            </select>
+          </label>
+          <label>Turniername
+            <input name="titel" required maxlength="100" placeholder="z. B. Herbstturnier">
+          </label>
+          <label>Modus
+            <select name="modus">
+              <option value="jeder-gegen-jeden">Jeder gegen jeden</option>
+              <option value="ko">K.-o.-System</option>
+            </select>
+          </label>
+          <label id="spielwertungFeld">Spielwertung
+            <select name="gewinnsaetze">
+              <option value="2">2 Gewinnsätze (Best of 3)</option>
+              <option value="3">3 Gewinnsätze (Best of 5)</option>
+            </select>
+          </label>
+          <label id="erfassungsartFeld">Ergebniserfassung
+            <select name="satzweise">
+              <option value="0">Nur Satzergebnis (z. B. 2:1)</option>
+              <option value="1">Sätze einzeln erfassen</option>
+            </select>
+          </label>
+          <label><span id="tischanzahlLabel">Verfügbare Tische (optional)</span>
+            <input name="anzahlTische" type="number" min="1" max="32" placeholder="offen">
+          </label>
+          <label id="schachDurchgaengeFeld" hidden>Schachbegegnungen
+            <select name="durchgaenge"><option value="2">Hin- und Rückspiel (Farbenwechsel)</option><option value="1">Eine Partie pro Paarung</option></select>
+          </label>
+          <p id="schachHinweis" class="hint wide" hidden>Sieg: 1 Punkt · Remis: ½ Punkt · Niederlage: 0 Punkte. Jeder gegen jeden. Anwesende Spieler können an jedem Spieltag neu ausgelost werden.</p>
+          <div class="wide">
+            <p id="teilnehmerHinweis" class="hint">Je Doppelpaar die Namen der beiden Spieler eingeben. Möglich sind 5 bis 32 Doppelpaare.</p>
+            <div id="paare" class="paare"></div>
+            <div class="toolbar actions">
+              <button id="paarHinzufuegen" class="secondary" type="button">Paar hinzufügen</button>
+            </div>
           </div>
         </div>
-        <div class="wide toolbar">
+        <div class="turnier-form-aktionen toolbar">
           <span id="anzahl" aria-live="polite"></span>
           <button id="fantasiePaar" class="secondary" type="button">Fantasiepaar einfügen</button>
           <button id="turnierAbbrechen" class="secondary" type="button">Abbrechen</button>
@@ -193,6 +198,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=66"></script>
+  <script type="module" src="app.js?v=67"></script>
 </body>
 </html>
