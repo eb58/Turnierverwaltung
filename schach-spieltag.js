@@ -59,9 +59,15 @@ export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm }) 
 const auslosungOffen = new Map();
 
 export const renderSchachSpieltag = (turnier, hilfe) => {
-  const { el, bearbeiten, busy, setBusy, request, aktualisieren, meldung, bestaetigen, ergebnisForm, paarungsText, anmelden } = hilfe;
+  const { el, bearbeiten, busy, setBusy, request, aktualisieren, meldung, bestaetigen, ergebnisForm, paarungsText, anmelden, abgeschlossen, sieger } = hilfe;
   const letzter = turnier.spieltage?.at(-1), aktiv = letzter?.status === 'aktiv';
   const section = el('section', undefined, 'spieltag');
+  if (abgeschlossen && !aktiv) {
+    section.setAttribute('aria-label', 'Turnierstand');
+    section.append(el('h3', 'Turnier abgeschlossen'));
+    if (sieger.length) section.append(el('p', `${sieger.length > 1 ? 'Turniersieger (geteilt)' : 'Turniersieger'}: ${sieger.map(person => person.name).join(', ')}`, 'erfolg'));
+    return section;
+  }
   section.setAttribute('aria-label', 'Anwesenheit und Auslosung');
   section.append(el('h3', aktiv ? 'Aktueller Spieltag' : 'Neuer Spieltag'));
   const namen = new Map(turnier.teilnehmer.map(person => [person.id, person.name]));

@@ -91,6 +91,7 @@ function schachAuslosen(array $turnier, array $payload): array
     foreach ($turnier['runden'] as $runde) foreach ($runde as $spiel) {
         if ($spiel['status'] === 'offen') $offen[schachPaarSchluessel($spiel['a'], $spiel['b'])][] = $spiel;
     }
+    if (!$offen && !$freieErlaubt) throw new ApiError('Das Turnier ist abgeschlossen. Alle Partien sind gespielt.');
     $zentren = $anwesend; shuffle($zentren); $haeufigkeit = array_fill_keys($anwesend, 0);
     foreach ($tage as $tag) if ($tag['zentrum'] !== null && isset($haeufigkeit[$tag['zentrum']])) $haeufigkeit[$tag['zentrum']]++;
     usort($zentren, fn(int $a, int $b): int => $haeufigkeit[$a] <=> $haeufigkeit[$b]);

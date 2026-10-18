@@ -1,6 +1,6 @@
 import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=6';
 import { istSchach, schachErgebnisText, schachPunkte, schachKreuztabelle } from './schach-domain.js?v=5';
-import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=8';
+import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=10';
 
 const $ = id => document.getElementById(id);
 const el = (tag, text, className = '') => {
@@ -347,7 +347,7 @@ const speichern = async (turnier, spiel, body) => {
       text: 'Bei einem geänderten Sieger werden betroffene Folgespiele zurückgesetzt.',
       bestaetigung: 'Ergebnis ändern',
     })) return;
-  void mutation(`ergebnis&turnier=${turnier.id}&spiel=${encodeURIComponent(spiel.id)}`, { version: turnier.version, ...body });
+  await mutation(`ergebnis&turnier=${turnier.id}&spiel=${encodeURIComponent(spiel.id)}`, { version: turnier.version, ...body });
 };
 
 const aktuelleRundeIndex = turnier => {
@@ -388,17 +388,22 @@ const renderSchachErgebnis = (turnier, spiel, titel, names) => {
   for (const [wert, text] of [['', 'Ergebnis wählen …'], ['1:0', '1:0 · Weiß gewinnt'], ['0.5:0.5', '½:½ · Remis'], ['0:1', '0:1 · Schwarz gewinnt']]) {
     const option = el('option', text); option.value = wert; auswahl.append(option);
   }
-  auswahl.value = spiel.status === 'fertig' ? `${spiel.punkteA}:${spiel.punkteB}` : '';
-  const save = el('button', 'Speichern', 'small'); save.type = 'submit';
-  ergebnisForm.append(auswahl, save);
-  ergebnisForm.addEventListener('submit', event => {
-    event.preventDefault();
-    if (!auswahl.value) { meldung('Bitte ein Schachergebnis auswählen.'); return; }
+  const gespeichert = spiel.status === 'fertig' ? `${spiel.punkteA}:${spiel.punkteB}` : '';
+  auswahl.value = gespeichert;
+  ergebnisForm.append(auswahl);
+  ergebnisForm.addEventListener('submit', event => event.preventDefault());
+  // Speichert direkt bei Auswahl; bei Fehler oder laufender Speicherung zeigt die Auswahl wieder den gespeicherten Stand.
+  auswahl.addEventListener('change', async () => {
+    if (!auswahl.value) { auswahl.value = gespeichert; return; }
+    if (state.busy) { auswahl.value = gespeichert; meldung('Bitte warten, bis das vorige Ergebnis gespeichert ist.'); return; }
     const [punkteA, punkteB] = auswahl.value.split(':').map(Number);
-    void speichern(turnier, spiel, { punkteA, punkteB });
+    await speichern(turnier, spiel, { punkteA, punkteB });
+    if (auswahl.isConnected) auswahl.value = gespeichert;
   });
   if (spiel.status === 'fertig') {
-    const loeschen = el('button', 'Ergebnis löschen', 'small secondary'); loeschen.type = 'button';
+    const loeschen = el('button', undefined, 'small secondary icon-button'); loeschen.type = 'button';
+    loeschen.title = 'Ergebnis löschen'; loeschen.setAttribute('aria-label', `${titel}: Ergebnis ${names.get(spiel.a)} gegen ${names.get(spiel.b)} löschen`);
+    loeschen.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z"/></svg>';
     loeschen.addEventListener('click', async () => {
       if (!await dialogOeffnen({ titel: 'Ergebnis löschen?', text: 'Das gespeicherte Ergebnis wird entfernt.', bestaetigung: 'Ergebnis löschen', gefahr: true })) return;
       void mutation(`ergebnis&turnier=${turnier.id}&spiel=${encodeURIComponent(spiel.id)}`, { version: turnier.version, punkteA: null, punkteB: null }, 'Ergebnis gelöscht.');
@@ -410,6 +415,7 @@ const renderSchachErgebnis = (turnier, spiel, titel, names) => {
 
 const spieltagAnsicht = (turnier, bearbeiten) => renderSchachSpieltag(turnier, {
   el, bearbeiten, busy: () => state.busy, setBusy, request, meldung, bestaetigen: dialogOeffnen,
+  abgeschlossen: turnierIstAbgeschlossen(turnier), sieger: turnierPlatzierungen(turnier).filter(zeile => zeile.platz === 1),
   anmelden: () => $('leitungAnmelden').click(),
   ergebnisForm: renderSchachErgebnis, paarungsText,
   aktualisieren: geaendert => {
@@ -477,7 +483,7 @@ const renderDetails = () => {
   if (turnier.modus === 'jeder-gegen-jeden') {
     details.append(el('h3', 'Tabelle'), renderTabelle(turnier));
     if (istSchach(turnier)) details.append(renderKreuztabelle(turnier));
-    if (fortschritt.fertig === fortschritt.gesamt) details.append(el('p', 'Turnier abgeschlossen.', 'erfolg'));
+    if (!istSchach(turnier) && fortschritt.fertig === fortschritt.gesamt) details.append(el('p', 'Turnier abgeschlossen.', 'erfolg'));
   } else {
     const finale = turnier.runden.at(-1)[0];
     if (finale.sieger !== null) details.append(el('p', `Turniersieger: ${names.get(finale.sieger)}`, 'erfolg'));

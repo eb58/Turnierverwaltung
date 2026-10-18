@@ -22,6 +22,8 @@ button.secondary:hover { background: var(--accent-soft); }
 button.danger { color: #991b1b; background: white; border-color: #dc2626; }
 button.danger:hover { color: white; background: #b91c1c; }
 button.small { min-height: 34px; padding: .3rem .65rem; font-size: .9rem; }
+.icon-button { display: inline-flex; align-items: center; justify-content: center; }
+.icon-button svg { width: 18px; height: 18px; fill: currentColor; }
 button:disabled, input:disabled, select:disabled { cursor: wait; opacity: .6; }
 input, select { width: 100%; padding: .5rem .65rem; background: white; color: var(--ink); }
 .app-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 100vh; transition: grid-template-columns .18s ease; }
@@ -207,6 +209,11 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
   .app { padding: .6rem; }
   .panel { padding: .8rem; }
   .turnier-form { grid-template-columns: 1fr; }
+  .vergangener-spieltag thead { display: none; }
+  .vergangener-spieltag tr { display: block; padding: .45rem 0; border-bottom: 1px solid var(--border); }
+  .vergangener-spieltag td { display: block; padding: .2rem 0; border: 0; white-space: normal; }
+  .vergangener-spieltag .ergebnis { flex-wrap: nowrap; }
+  .vergangener-spieltag .ergebnis > select { min-width: 0; }
 }
 @media print {
   body { background: white; }
