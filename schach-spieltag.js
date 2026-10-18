@@ -19,7 +19,9 @@ export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm }) 
     const nachtragbar = schachNachtragbar(turnier, tag, letzterTag).length;
     details.open = historieOffen.get(tag.id) ?? false;
     details.addEventListener('toggle', () => historieOffen.set(tag.id, details.open));
-    details.append(el('summary', `${index + 1}. Spieltag · ${datumText(tag.datum)} · ${anzahl} Partien · beendet${nachtragbar ? ` · ${nachtragbar} offen` : ''}`));
+    const partienText = `${anzahl} ${anzahl === 1 ? 'Partie' : 'Partien'}${tag.paarungen ? '' : ' angesetzt'}`;
+    const ergebnisText = nachtragbar ? ` · ${nachtragbar} ${nachtragbar === 1 ? 'Ergebnis offen' : 'Ergebnisse offen'}` : '';
+    details.append(el('summary', `${index + 1}. Spieltag · ${datumText(tag.datum)} · Spieltag beendet · ${partienText}${ergebnisText}`));
     if (bearbeiten && nachtragbar) details.append(el('p', 'Offene Partien dieses Spieltags können hier nachgetragen werden, solange sie nicht an einem späteren Spieltag neu ausgelost wurden.', 'hint management-only'));
     details.append(el('p', `${tag.anwesenheitVollstaendig === false ? 'Mitgespielt' : 'Anwesend'}: ${tag.anwesend.map(id => namen.get(id)).join(', ')}`, 'muted'));
     const tabelle = el('table'), head = el('thead'), kopf = el('tr');

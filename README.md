@@ -191,6 +191,7 @@ Turnierverwaltung/
 ├── .htaccess                     # Apache-Routing und Sperre des Datenverzeichnisses
 ├── deploy.ps1                    # Deployment über SSH/SCP
 ├── package.json                  # Befehle für Syntaxprüfung und Tests
+├── assets/                       # SVG-Motive für Turnieranzeige und Urkunden
 ├── docs/                         # Kurzanleitungen für Turnierleitung und Gesamtverwaltung
 ├── scripts/                      # CLI für die bestehende Schachsaison
 ├── tests/                        # JavaScript-, PHP- und API-Tests

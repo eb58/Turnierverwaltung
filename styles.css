@@ -120,6 +120,9 @@ caption { padding: .4rem 0; color: var(--muted); text-align: left; }
 th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .turnier-kopf { justify-content: space-between; }
 .turnier-kopf h2 { margin-bottom: 0; }
+.turnier-titel { display: flex; align-items: center; gap: .8rem; min-width: 0; margin-bottom: .6rem; }
+.turnier-titel h2 { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.sportart-motiv { display: block; flex: 0 0 auto; width: 64px; height: 48px; object-fit: contain; }
 .runden { display: grid; gap: .8rem; }
 .runde { padding: .75rem; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc; }
 .runde.aktuell { border-color: var(--accent); background: var(--surface-2); box-shadow: 0 0 0 2px rgba(15, 118, 110, .1); }
@@ -208,6 +211,8 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
 @media (max-width: 650px) {
   .app { padding: .6rem; }
   .panel { padding: .8rem; }
+  .turnier-titel { gap: .6rem; }
+  .sportart-motiv { width: 48px; height: 36px; }
   .turnier-form { grid-template-columns: 1fr; }
   .vergangener-spieltag thead { display: none; }
   .vergangener-spieltag tr { display: block; padding: .45rem 0; border-bottom: 1px solid var(--border); }

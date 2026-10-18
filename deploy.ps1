@@ -10,6 +10,7 @@ param(
 $ErrorActionPreference = "Stop"
 $projectRoot = $PSScriptRoot
 $appFiles = @(".htaccess", "api.php", "schach.php", "schach-auslosung.php", "speicher.php", "leitung.php", "pin-einrichten.php", "app.js", "turnier-domain.js", "schach-domain.js", "schach-spieltag.js", "index.html", "reinickendorf-wappen.svg", "styles.css")
+$assetFiles = @("assets/tischtennis.svg", "assets/schach.svg")
 $sshOpt = "-o UpdateHostKeys=no"
 $remoteApp = "${Webroot}/${AppPath}"
 $uploadFiles = $appFiles | ForEach-Object {
@@ -17,10 +18,15 @@ $uploadFiles = $appFiles | ForEach-Object {
     if (!(Test-Path -LiteralPath $path)) { throw "Datei fehlt: $path" }
     $path
 }
+$uploadAssets = $assetFiles | ForEach-Object {
+    $path = Join-Path $projectRoot $_
+    if (!(Test-Path -LiteralPath $path -PathType Leaf)) { throw "Datei fehlt: $path" }
+    $path
+}
 
 if ($WhatIfOnly) {
     Write-Host "Wuerde nach ${User}@${Server}:${remoteApp}/ hochladen:" -ForegroundColor Yellow
-    $appFiles | ForEach-Object { Write-Host "  $_" }
+    ($appFiles + $assetFiles) | ForEach-Object { Write-Host "  $_" }
     Write-Host "Die lokale PIN-Konfiguration wird nur bei der Ersteinrichtung uebernommen. Vorhandene Daten und Sicherungen bleiben erhalten."
     exit 0
 }
@@ -29,7 +35,7 @@ $localPinFile = Join-Path $projectRoot 'data/leitung.json'
 if (!(Test-Path -LiteralPath $localPinFile -PathType Leaf)) { throw 'Bitte zuerst die PIN der Gesamtverwaltung mit php pin-einrichten.php einrichten.' }
 
 Write-Host "Bereite Zielverzeichnis vor..." -ForegroundColor Cyan
-ssh -p $Port $sshOpt "${User}@${Server}" "mkdir -p '${remoteApp}/data'"
+ssh -p $Port $sshOpt "${User}@${Server}" "mkdir -p '${remoteApp}/data' '${remoteApp}/assets'"
 if ($LASTEXITCODE -ne 0) { throw "Remote-Verzeichnis konnte nicht vorbereitet werden." }
 
 # Die Zugriffssperre bleibt auch waehrend eines Updates aktiv.
@@ -40,6 +46,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Datenschutz fuer das Datenverzeichnis konnte n
 Write-Host "Lade App hoch..." -ForegroundColor Cyan
 scp -P $Port $sshOpt @uploadFiles "${User}@${Server}:${remoteApp}/"
 if ($LASTEXITCODE -ne 0) { throw "Upload fehlgeschlagen." }
+scp -P $Port $sshOpt @uploadAssets "${User}@${Server}:${remoteApp}/assets/"
+if ($LASTEXITCODE -ne 0) { throw "Upload der SVG-Grafiken fehlgeschlagen." }
 
 Write-Host "Pruefe PIN der Gesamtverwaltung..." -ForegroundColor Cyan
 ssh -p $Port $sshOpt "${User}@${Server}" "test -f '${remoteApp}/data/leitung.json'"
@@ -51,7 +59,7 @@ if ($LASTEXITCODE -eq 1) {
 } elseif ($LASTEXITCODE -ne 0) { throw 'PIN-Konfiguration auf dem Server konnte nicht geprueft werden.' }
 
 Write-Host "Setze Dateirechte..." -ForegroundColor Cyan
-ssh -p $Port $sshOpt "${User}@${Server}" "chmod 755 '${remoteApp}' && find '${remoteApp}' -maxdepth 1 -type f -exec chmod 644 {} \; && chmod 775 '${remoteApp}/data'"
+ssh -p $Port $sshOpt "${User}@${Server}" "chmod 755 '${remoteApp}' '${remoteApp}/assets' && find '${remoteApp}' -maxdepth 1 -type f -exec chmod 644 {} \; && find '${remoteApp}/assets' -maxdepth 1 -type f -exec chmod 644 {} \; && chmod 775 '${remoteApp}/data'"
 if ($LASTEXITCODE -ne 0) { throw "Dateirechte konnten nicht gesetzt werden." }
 
 Write-Host "Fertig! https://senioren-luebars.berlin/${AppPath}/" -ForegroundColor Green

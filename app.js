@@ -1,6 +1,6 @@
 import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=7';
 import { istSchach, schachErgebnisText, schachPunkte, schachKreuztabelle } from './schach-domain.js?v=6';
-import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=11';
+import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=12';
 
 const $ = id => document.getElementById(id);
 const el = (tag, text, className = '') => {
@@ -130,6 +130,15 @@ const request = async (action = '', options = {}) => {
 
 const modusName = modus => modus === 'ko' ? 'K.-o.-System' : 'Jeder gegen jeden';
 const sportartName = turnier => istSchach(turnier) ? 'Schach' : 'Tischtennis-Doppel';
+// Absolute Asset-URLs funktionieren auch im separat geöffneten Urkundenfenster.
+const sportartMotivUrl = turnier => new URL(istSchach(turnier) ? 'assets/schach.svg' : 'assets/tischtennis.svg', import.meta.url).href;
+const renderTurnierTitel = turnier => {
+  const titel = el('div', undefined, 'turnier-titel');
+  const motiv = el('img', undefined, 'sportart-motiv');
+  motiv.src = sportartMotivUrl(turnier); motiv.alt = ''; motiv.width = 96; motiv.height = 72;
+  titel.append(motiv, el('h2', turnier.titel));
+  return titel;
+};
 const gewinnsaetze = turnier => turnier.gewinnsaetze ?? 3;
 const wertungsName = turnier => istSchach(turnier) ? `${turnier.durchgaenge === 2 ? 'Hin- und Rückspiel' : 'Eine Partie pro Paarung'} · Sieg 1 · Remis ½ · Niederlage 0` : `${gewinnsaetze(turnier)} Gewinnsätze (Best of ${gewinnsaetze(turnier) * 2 - 1})`;
 const gueltigesErgebnis = (a, b, ziel) => Number.isInteger(a) && Number.isInteger(b)
@@ -160,6 +169,7 @@ const siegerurkundenDrucken = turnier => {
   const seiten = urkunden.map(urkunde => `
     <main class="urkunde">
       <div class="rahmen">
+        <img class="sportart-motiv" src="${htmlSicher(sportartMotivUrl(turnier))}" alt="">
         <img src="${htmlSicher(logo)}" alt="Bezirkssymbol Reinickendorf">
         <p class="verein">${istSchach(turnier) ? 'Schachturnier' : 'Tischtennis-Doppelturnier'}</p>
         <h1>${urkunde.platz === 1 ? 'Siegerurkunde' : 'Urkunde'}</h1>
@@ -184,6 +194,7 @@ const siegerurkundenDrucken = turnier => {
       .rahmen::before, .rahmen::after { content: ""; position: absolute; width: 24mm; height: 24mm; border-color: #d5a62e; }
       .rahmen::before { top: 5mm; left: 5mm; border-top: 1mm solid #d5a62e; border-left: 1mm solid #d5a62e; }
       .rahmen::after { right: 5mm; bottom: 5mm; border-right: 1mm solid #d5a62e; border-bottom: 1mm solid #d5a62e; }
+      .sportart-motiv { position: absolute; top: 11mm; right: 12mm; width: 30mm; height: 22.5mm; }
       img { width: 24mm; height: 29mm; object-fit: contain; }
       p { margin: 0; }
       .verein { margin-top: 2mm; color: #526b67; font: 600 11pt "Segoe UI", sans-serif; letter-spacing: .12em; text-transform: uppercase; }
@@ -429,7 +440,7 @@ const renderBeamer = turnier => {
   const fortschritt = turnierFortschritt(turnier);
   const aktuell = aktuelleRundeIndex(turnier);
   details.className = 'panel beamer-panel';
-  details.append(el('h2', turnier.titel), el('p', `${sportartName(turnier)} · ${modusName(turnier.modus)} · ${wertungsName(turnier)} · ${fortschritt.fertig} von ${fortschritt.gesamt} ${istSchach(turnier) ? 'Partien' : 'Spielen'} abgeschlossen`, 'muted'));
+  details.append(renderTurnierTitel(turnier), el('p', `${sportartName(turnier)} · ${modusName(turnier.modus)} · ${wertungsName(turnier)} · ${fortschritt.fertig} von ${fortschritt.gesamt} ${istSchach(turnier) ? 'Partien' : 'Spielen'} abgeschlossen`, 'muted'));
   if (turnier.modus === 'jeder-gegen-jeden') details.append(el('h3', 'Tabelle'), renderTabelle(turnier));
   if (istSchach(turnier)) {
     const spieltag = spieltagAnsicht(turnier, false);
@@ -473,7 +484,7 @@ const renderDetails = () => {
   const names = new Map(turnier.teilnehmer.map(item => [item.id, item.name]));
   const fortschritt = turnierFortschritt(turnier);
   const kopf = el('div', undefined, 'turnier-kopf toolbar');
-  kopf.append(el('h2', turnier.titel));
+  kopf.append(renderTurnierTitel(turnier));
   details.append(kopf, el('p', `${sportartName(turnier)} · ${modusName(turnier.modus)} · ${wertungsName(turnier)} · ${turnier.teilnehmer.length} ${istSchach(turnier) ? 'Spieler' : 'Doppelpaare'} · ${fortschritt.fertig} von ${fortschritt.gesamt} ${istSchach(turnier) ? 'Partien' : 'Spielen'} abgeschlossen`, 'muted'));
   if (istSchach(turnier)) {
     const spieltag = spieltagAnsicht(turnier, darfBearbeiten());
