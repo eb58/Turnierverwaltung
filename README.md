@@ -1,119 +1,264 @@
 # Turnierverwaltung
 
-Eigenständige Verwaltung von Tischtennis-Doppelturnieren und Schachturnieren mit öffentlicher Zuschaueransicht und PIN für die Turnierleitung. Die Anwendung besteht aus Vanilla JavaScript und PHP und benötigt keinen Build-Schritt.
+Webanwendung für Tischtennis-Doppelturniere und Schachturniere im Seniorenclub Lübars. Sie bietet Spielpläne, Ergebniserfassung, Tabellen und eine öffentliche Zuschaueransicht. Änderungen sind durch eine PIN für die Turnierleitung geschützt.
+
+Die Anwendung verwendet HTML, CSS, Vanilla JavaScript und PHP. Sie benötigt weder einen Build-Schritt noch eine Datenbank oder zusätzliche Softwarepakete. Die Turnierdaten werden serverseitig als JSON gespeichert.
+
+## Kurzanleitungen
+
+- [Bedienungsanleitung für Turnierleiter](docs/turnierleitung.md)
+- [Bedienungsanleitung für die Gesamtverwaltung](docs/gesamtverwaltung.md)
 
 ## Funktionen
 
-- Auswahl der Sportart beim Anlegen: Tischtennis-Doppel oder Schach
-- Tischtennis: 5 bis 32 feste Doppelpaare, jeder gegen jeden oder K.-o.-System
-- Schach: 2 bis 32 Einzelspieler, jeder gegen jeden
-- Schach wahlweise mit Hin- und Rückspiel und Farbenwechsel oder einer Partie pro Paarung
-- aktuelle Runde hervorgehoben, weitere Runden einklappbar
-- Tischtennis: wahlweise zwei oder drei Gewinnsätze, einfache oder satzweise Ergebniserfassung
-- Tischtennistabelle mit Siegen, Satzdifferenz und direktem Vergleich
-- Schach: Weiß/Schwarz mit höchstens einer Partie Unterschied pro Spieler; bei ungerader Spielerzahl eine Pause pro Spieler
-- Schachergebnisse 1:0, ½:½ oder 0:1; Tabelle mit Punkten, Siegen, Remis und Niederlagen
-- Schachrangfolge nach Punkten und direktem Vergleich innerhalb der punktgleichen Gruppe, sobald deren Begegnungen vollständig gespielt sind; verbleibender Gleichstand ergibt geteilte Ränge
-- Schach-Kreuztabelle mit Ergebnissen, offenen Partien und Weiß/Schwarz aus Sicht jedes Spielers
-- Anwesenheitsauswahl und zufällige Tagesauslosung aus noch offenen Begegnungen
-- Bei ungerader Anwesenheit eine Dreiergruppe: Eine Person spielt nacheinander je eine Partie gegen die beiden anderen; die zentrale Rolle wechselt nach Möglichkeit
-- Gespeicherte Spieltage mit direkter Ergebniserfassung, Zuschauer-/Beameransicht und erneuter Auslosung vor dem ersten Tagesergebnis
-- Server schützt sämtliche Änderungen mit einer Leitungsanmeldung; Zuschauer können Turniere, Tabellen und Ergebnisse lesen
-- Automatische Sicherungen mit Datum und Änderungsbeschreibung; Vorschau und Wiederherstellung früherer Stände, auch gelöschter Turniere
-- K.-o.-Freilose und automatische Fortschreibung der Sieger
-- optionale Tisch- bzw. Brettanzahl mit Anzeige von Spielblock und Tisch/Brett
-- Beameransicht mit automatischer Aktualisierung
-- Druckansicht sowie JSON-Export und -Import zur Datensicherung
-- druckfertige Urkunden für die Plätze 1 bis 3, beim Doppel für beide Spieler; nur für angemeldete Turnierleitungen
-- Turniere umbenennen und mit Sicherheitsabfrage löschen
-- Versionsprüfung gegen versehentliches Überschreiben paralleler Änderungen
+| | Tischtennis | Schach |
+| --- | --- | --- |
+| Teilnehmer | 5 bis 32 feste Doppelpaare | 2 bis 32 Einzelspieler |
+| Turniermodus | Jeder gegen jeden oder K.-o.-System | Jeder gegen jeden |
+| Spielwertung | Zwei oder drei Gewinnsätze; Satzergebnis oder einzelne Sätze | Sieg: 1 Punkt, Remis: ½ Punkt, Niederlage: 0 Punkte |
+| Spielplan | Runden, Freilose und automatische Fortschreibung der K.-o.-Sieger | Eine Partie pro Paarung oder Hin- und Rückspiel mit Farbenwechsel |
+| Tabelle | Siege, Satzdifferenz und direkter Vergleich | Punkte, direkter Vergleich und Kreuztabelle mit Farben und Ergebnissen |
+
+Gemeinsame Funktionen:
+
+- Verwaltung mehrerer Turniere mit eigenen PINs für die jeweilige Turnierleitung
+- Optionale Tisch- bzw. Brettanzahl mit Zuordnung zu Spielblöcken und Tischen/Brettern
+- Öffentliche Zuschauer- und Beameransicht mit automatischer Aktualisierung
+- Direkte Links zu einzelnen Turnieren
+- Druckansicht und Urkunden für die Plätze 1 bis 3; beim Doppel für beide Spieler
+- JSON-Export und -Import einzelner Turniere
+- Automatische Sicherungen mit Vorschau und Wiederherstellung, auch für gelöschte Turniere
+- Versionsprüfung zum Schutz vor dem Überschreiben paralleler Änderungen
+
+Für Schach gibt es außerdem eine Anwesenheitsauswahl und Tagesauslosungen mit gespeicherter Spieltagshistorie.
+
+## Voraussetzungen
+
+- **PHP ab 8.1**, lokal als Kommandozeilenprogramm `php` verfügbar. Der Code verwendet unter anderem `readonly`, `never` und `array_is_list`.
+- **Ein moderner Browser** mit JavaScript, ES-Modulen und Cookies für die Anmeldung.
+- **Schreibrechte im Datenverzeichnis** für den Benutzer, unter dem PHP ausgeführt wird. Standardmäßig ist dies `data/`; das Verzeichnis wird bei Bedarf angelegt.
+- **Für Tests zusätzlich Node.js und npm.** Es werden der integrierte Node-Test-Runner und `fetch` verwendet. Es gibt keine npm-Abhängigkeiten; `npm install` ist nicht erforderlich.
+- **Für das Deployment per Skript zusätzlich PowerShell, SSH und SCP.** Auf dem Zielserver wird Apache mit PHP, `mod_rewrite` und aktivierter Verarbeitung der `.htaccess` benötigt.
 
 ## Lokal starten
 
-Voraussetzung: PHP 8.x.
+Alle Befehle im Projektverzeichnis ausführen.
 
-Vor der ersten Nutzung die Superadmin-PIN einrichten. Die folgende Variante erzeugt eine zufällige PIN und zeigt sie einmal im Terminal an:
+### 1. PIN der Gesamtverwaltung einrichten
 
 ```powershell
 php pin-einrichten.php
 ```
 
-Eine eigene PIN mit 6 bis 12 Ziffern kann über die Standardeingabe gesetzt werden:
+Das Skript erzeugt eine zufällige achtstellige PIN und zeigt sie einmal im Terminal an. Die PIN für die spätere Anmeldung aufbewahren. Gespeichert wird ausschließlich ihr Passwort-Hash.
+
+Alternativ lässt sich eine eigene PIN mit 6 bis 12 Ziffern über die Standardeingabe setzen:
 
 ```powershell
-$neueLeitungsPin = Read-Host 'Neue Leitungs-PIN'
+$neueLeitungsPin = Read-Host 'Neue PIN der Gesamtverwaltung'
 $neueLeitungsPin | php pin-einrichten.php --stdin
 Remove-Variable neueLeitungsPin
 ```
 
-Eine bestehende PIN wird durch erneutes Ausführen nicht überschrieben. Zum bewussten Zurücksetzen steht `--zuruecksetzen` zur Verfügung; die PINs der Turnierleitungen bleiben dabei erhalten. Die PIN kann nach Anmeldung auch in der Anwendung geändert werden. Das Einrichtungsskript ist ausschließlich über PHP-CLI ausführbar.
+Eine vorhandene PIN wird bei einem erneuten Aufruf nicht überschrieben. Zum bewussten Zurücksetzen der PIN der Gesamtverwaltung:
+
+```powershell
+php pin-einrichten.php --zuruecksetzen
+```
+
+Die PINs der einzelnen Turnierleitungen bleiben dabei erhalten. `--zuruecksetzen` lässt sich mit `--stdin` kombinieren. Das Einrichtungsskript ist ausschließlich über die PHP-Kommandozeile ausführbar.
+
+### 2. Webserver starten
 
 ```powershell
 php -S localhost:8001 router.php
 ```
 
-Danach <http://localhost:8001> öffnen.
+Anschließend <http://localhost:8001> öffnen. Der lokale Router sperrt den direkten Webzugriff auf `data/`. Zum Beenden des Servers im Terminal `Strg+C` drücken.
 
-Die Seite startet in der Zuschaueransicht. Über **Turnierleitung anmelden** wird die PIN für das gewählte Turnier eingegeben. Es gibt zwei Rollen:
+### 3. Erstes Turnier anlegen
 
-- **Superadmin** (PIN aus `pin-einrichten.php`): darf alles, insbesondere Turniere anlegen, löschen und importieren sowie über **Turnier-PIN festlegen** jedem Turnier eine eigene PIN geben, sie ersetzen oder entfernen.
-- **Turnierleitung** (eigene PIN pro Turnier): bearbeitet nur dieses Turnier – Ergebnisse, Auslosung und Spieltage, Teilnehmer, Einstellungen, Umbenennen – und darf **Drucken**, **Urkunden**, **Exportieren**, **Link zu diesem Turnier** sowie **Sicherungen & Verlauf** dieses Turniers nutzen. Die eigene Turnier-PIN kann sie selbst ändern.
+1. **Anmelden** wählen und die PIN der Gesamtverwaltung eingeben.
+2. **Neues Turnier anlegen** öffnen, Sportart und Modus wählen und die Teilnehmer eintragen.
+3. Bei Bedarf über **Turnier-PIN festlegen** eine eigene PIN für dieses Turnier vergeben.
+4. Ergebnisse im Spielplan erfassen; bei Schach zunächst die Anwesenden auswählen und Paarungen auslosen.
 
-Ein Turnier ohne eigene PIN kann nur der Superadmin bearbeiten. Eine Sitzung kann für mehrere Turniere angemeldet sein; andere Turniere sieht sie in der Zuschaueransicht. Die Rechte werden bei jeder Aktion auf dem Server geprüft. Beameransichten bleiben schreibgeschützt. Die Anmeldung läuft nach acht Stunden ohne Aktivität ab; eine PIN-Änderung macht andere Sitzungen mit dieser PIN ungültig. Beim Löschen eines Turniers wird auch dessen PIN entfernt.
+## Anmeldung und Berechtigungen
 
-Die Funktionen stehen in der linken Seitenleiste. Am Desktop lässt sie sich über die runde Taste am Rand zu einer schmalen Symbolleiste verkleinern; der Zustand wird im Browser gemerkt. Auf schmalen Bildschirmen wird sie zur Kopfleiste, deren Menütaste die Funktionen als Aufklappmenü zeigt. Beim Drucken und in der Beameransicht ist sie ausgeblendet.
+Ohne Anmeldung startet die Anwendung in der Zuschaueransicht.
 
-## Datenhaltung
+| Rolle | Anmeldung | Berechtigungen |
+| --- | --- | --- |
+| Zuschauer | Keine PIN | Turniere, Spielpläne, Tabellen und Ergebnisse ansehen; Beameransicht öffnen |
+| Turnierleitung | PIN des ausgewählten Turniers | Dieses Turnier bearbeiten, Ergebnisse erfassen, Spieltage auslosen und beenden, drucken, Urkunden ausgeben, exportieren und dessen Sicherungen nutzen |
+| Gesamtverwaltung | PIN aus `pin-einrichten.php` | Alle Turniere verwalten, anlegen, löschen und importieren sowie Turnier-PINs vergeben, ersetzen oder entfernen |
 
-Mit `?turnier=4` öffnet sich ausschließlich das gewählte Turnier. Den passenden Link kopiert **Link zu diesem Turnier** in der Seitenleiste. Turnierauswahl, Neuanlage, Import und turnierübergreifender Sicherungsverlauf sind in dieser Ansicht ausgeblendet; der Leseaufruf lädt nur dieses Turnier. Anmeldung, Tagesauslosung, Ergebniserfassung, Export und Beameransicht bleiben verfügbar. Der Parameter lässt sich auch mit `&beamer=1` kombinieren. Ohne `turnier`-Parameter steht die normale Turnierauswahl zur Verfügung.
+Ein Turnier ohne eigene PIN kann nur die Gesamtverwaltung bearbeiten. Eine Sitzung kann für mehrere Turniere angemeldet sein; für die übrigen Turniere bleibt sie in der Zuschaueransicht. Die Turnierleitung kann ihre eigene PIN ändern. Beim Löschen eines Turniers wird dessen PIN entfernt.
 
-Alle Turniere und das Verzeichnis der Änderungen werden in `data/turniere.json` gespeichert. Ältere Dateien mit einer reinen Turnierliste werden beim nächsten Speichern automatisch übernommen. Der Webserver benötigt Schreibrechte auf `data/`.
+Die Berechtigungen werden bei jeder Aktion serverseitig geprüft. Beameransichten bleiben schreibgeschützt. Nach acht Stunden ohne Aktivität läuft die Anmeldung ab. Eine PIN-Änderung macht andere Sitzungen mit dieser PIN ungültig.
 
-Vor jeder Änderung werden der vorherige und neue Turnierstand in einer eigenen Datei unter `data/sicherungen/` gesichert. Aktuelle Daten werden erst danach atomar ersetzt. Schlägt eine Sicherung fehl, bleibt der aktuelle Stand erhalten. Die Sicherungen werden dauerhaft aufbewahrt. Beim Wiederherstellen wird eine neue Version vergeben; andere Turniere bleiben erhalten, und parallele Änderungen werden geprüft. Sicherungen existieren ab der ersten Änderung mit dieser Version der Anwendung.
+Die Funktionen stehen in der linken Seitenleiste. Am Desktop lässt sie sich zu einer Symbolleiste verkleinern; der Browser merkt sich diesen Zustand. Auf schmalen Bildschirmen öffnet die Menütaste die Navigation. Beim Drucken und in der Beameransicht wird die Seitenleiste ausgeblendet.
 
-Superadmin- und Turnier-PINs liegen ausschließlich als Passwort-Hash in `data/leitung.json` (Turnier-PINs unter `turniere`, nach Turnier-ID); sie stehen nie in `turniere.json`, Exporten oder Sicherungen. Sitzungen und begrenzte Anmeldeversuche werden ebenfalls unter `data/` gespeichert. Das gesamte Verzeichnis ist über Apache und den lokalen Router vom direkten Webzugriff ausgeschlossen und nicht versioniert. Für einen vollständigen Umzug bzw. eine zusätzliche Sicherung das gesamte `data/`-Verzeichnis kopieren.
+## Turnierbetrieb
 
-Anmeldesitzungen verwenden einen eigenen CSRF-Token sowie Cookies mit HttpOnly und SameSite=Strict, bei HTTPS zusätzlich Secure. Verwendete PHP-Grundlagen: [Sitzungseinstellungen](https://www.php.net/manual/en/session.security.ini.php), [Passwort-Hashing](https://www.php.net/manual/en/function.password-hash.php).
+### Tischtennis
 
-Bestehende Turniere und ältere Sicherungen ohne `sportart` gelten weiterhin als Tischtennis-Doppel. Schachregeln und -wertung liegen getrennt in `schach.php` und `schach-domain.js`. Gemeinsame Ansichten und Speicherung werden für beide Sportarten verwendet.
+Die Anwendung verwaltet feste Doppelpaare. Bei **Jeder gegen jeden** spielt jedes Paar einmal gegen jedes andere Paar. Die Tabelle wertet Siege, Satzdifferenz und anschließend den direkten Vergleich; bei vollständigem Gleichstand werden Ränge geteilt. Im **K.-o.-System** werden Freilose berücksichtigt und Sieger automatisch in die nächste Runde übernommen.
 
-Ein Schachturnier mit 10 Spielern umfasst 9 Runden und 45 Partien, mit 11 Spielern 11 Runden und 55 Partien (je eine Pause), mit 12 Spielern 11 Runden und 66 Partien. Pausen bringen keine Punkte.
+Es können zwei oder drei Gewinnsätze eingestellt werden. Ergebnisse lassen sich als Satzergebnis, beispielsweise `2:1`, oder mit den Punkten jedes einzelnen Satzes erfassen. Die aktuelle Runde ist hervorgehoben, weitere Runden lassen sich einklappen.
 
-Diese Zahlen gelten bei einer Partie pro Paarung. Bei Hin- und Rückspiel verdoppelt sich die Zahl der Partien: 90, 110 bzw. 132. Neue Schachturniere bieten standardmäßig Hin- und Rückspiel an; bestehende Turniere behalten ihren bisherigen Modus. Die Kreuztabelle zeigt die beiden Ergebnisse getrennt.
+### Schach: Wertung und Spielplan
 
-## Anwesenheit und Tagesauslosung
+Neue Schachturniere bieten standardmäßig Hin- und Rückspiel mit Farbenwechsel an. Alternativ ist eine Partie pro Paarung möglich. Bestehende Turniere behalten ihren bisherigen Modus. Der interne Spielplan verteilt Weiß und Schwarz mit höchstens einer Partie Unterschied pro Spieler; bei ungerader Spielerzahl enthält jeder Durchgang eine Pause pro Spieler. Pausen bringen keine Punkte.
 
-Als Turnierleitung im Schachturnier die anwesenden Spieler über Namenschips markieren und **Paarungen auslosen** wählen. Anschließend die Ergebnisse direkt bei den ausgelosten Paarungen erfassen und den Spieltag beenden. Normale Paare erhalten ihre noch offenen Partien gegeneinander. In einer Dreiergruppe spielt die zuerst genannte Person nacheinander je eine Partie gegen die beiden anderen. Nicht anwesende Spieler werden nicht eingeteilt.
+| Spieler | Runden bei einer Partie pro Paarung | Partien bei einer Partie pro Paarung | Partien mit Hin- und Rückspiel |
+| --- | --- | --- | --- |
+| 10 | 9 | 45 | 90 |
+| 11 | 11 | 55 | 110 |
+| 12 | 11 | 66 | 132 |
 
-Die Auslosung verwendet ausschließlich offene Turnierpartien. Ist für die ausgewählten Anwesenden keine vollständige Einteilung möglich, wird dies angezeigt.
+Ergebnisse sind `1:0`, `½:½` oder `0:1`. Die Rangfolge richtet sich nach Punkten und danach nach dem direkten Vergleich innerhalb der punktgleichen Gruppe, sobald deren Begegnungen vollständig gespielt sind. Verbleibender Gleichstand ergibt geteilte Ränge. Die Kreuztabelle zeigt Ergebnisse, offene Partien und Farben aus Sicht jedes Spielers; Hin- und Rückspiel werden getrennt dargestellt.
 
-Vor dem ersten erfassten Tagesergebnis kann neu ausgelost werden. Danach zuerst **Spieltag beenden** wählen. Offene Partien bleiben für weitere Spieltage verfügbar. Anwesenheit, Einteilung und Abschluss werden gespeichert, automatisch gesichert und beim JSON-Export/-Import erhalten. Abgeschlossene Spieltage erscheinen unter **Bisherige Spieltage**. Die Schachansicht und die Beameransicht zeigen ausschließlich tatsächliche Tagespaarungen; die interne Rundeneinteilung wird nicht angezeigt. Tischtennisturniere behalten ihre Rundenansicht.
+### Schach: Anwesenheit und Tagesauslosung
 
-## Prüfen
+1. Als Turnierleitung die anwesenden Spieler über die Namenschips markieren.
+2. **Paarungen auslosen** wählen.
+3. Ergebnisse direkt bei den ausgelosten Paarungen erfassen.
+4. **Spieltag beenden** wählen. Der Tag erscheint anschließend unter **Bisherige Spieltage**.
 
-### Vorhandene Saison 2026/27 anlegen
+Die Auslosung verwendet offene Turnierpartien und teilt nur Anwesende ein. Bei ungerader Anwesenheit entsteht eine Dreiergruppe: Die zuerst genannte Person spielt nacheinander je eine Partie gegen die beiden anderen. Diese zentrale Rolle wechselt nach Möglichkeit.
 
-Die rekonstruierten Spieltage vom 02., 09. und 16.10.2026 werden unter **Bisherige Spieltage** mit Paarungen und Ergebnissen angezeigt. Quellen und Rekonstruktionshinweise bleiben zur Nachvollziehbarkeit in den gespeicherten Daten. Bei einem bereits angelegten Turnier ergänzt `php scripts/schach-2026-27-anlegen.php --spieltage-ergaenzen` diese Historie mit automatischer Sicherung, ohne die Ergebnisse oder spätere Auslosungen zu verändern. Export und Wiederimport erhalten sie. Unbelegte Anwesenheit und nicht dokumentierte Partien werden nicht ergänzt.
+Ist für die ausgewählten Anwesenden keine vollständige Einteilung mit offenen Turnierpartien möglich, zeigt die Anwendung dies an.
 
-`php scripts/schach-2026-27-anlegen.php` legt die elf Spieler und zwölf belegten Paarergebnisse aus Rolfs Tabellen (Stand 16.10.2026) lokal an. Ein erneuter Aufruf lässt ein bereits vorhandenes gleichnamiges Schachturnier unverändert. Der Import verwendet die reguläre Validierung und automatische Sicherung.
+Solange der laufende Spieltag keine erfassten Ergebnisse enthält, kann neu ausgelost werden. Nach dem ersten Ergebnis muss der Spieltag zuerst beendet werden. Offene Partien bleiben für spätere Spieltage verfügbar. Ergebnisse eines beendeten Spieltags können unter **Bisherige Spieltage** nachgetragen werden, bis die betreffende Partie an einem späteren Spieltag neu ausgelost wird.
 
-Historische Summen aus Hin- und Rückspiel werden als solche gespeichert: 24 von 110 Partien sind abgeschlossen. Laut Nutzerbestätigung vom 17.10.2026 gab es keine Paarung mit zwei Remis: Ein historisches 1:1 bedeutet je einen Sieg. Damit ist die Einzelbilanz eindeutig; Farben und Reihenfolge bleiben unbekannt. Diese Klarstellung lässt sich bei einem bereits angelegten Turnier mit `php scripts/schach-2026-27-anlegen.php --einzelwertung-ergaenzen` einmalig ergänzen; bestehende Ergebnisse bleiben erhalten und die Änderung wird gesichert. Die entsprechenden Paarungen stehen nicht mehr für die Auslosung zur Verfügung. Export und Wiederimport erhalten diese Angaben. Die Punktesummen stimmen mit der Quelle überein; die angezeigten Ränge folgen der Wertung der App.
+Anwesenheit, Einteilung und Abschluss werden gespeichert, automatisch gesichert und bei Export und Import erhalten. Schach- und Beameransicht zeigen die tatsächlichen Tagespaarungen; die interne Rundeneinteilung bleibt ausgeblendet. Tischtennisturniere behalten ihre Rundenansicht.
+
+### Turnierlinks und Beameransicht
+
+**Link zu diesem Turnier** kopiert einen Link mit der Turnier-ID, zum Beispiel:
+
+```text
+http://localhost:8001/?turnier=4
+http://localhost:8001/?turnier=4&beamer=1
+```
+
+Mit `?turnier=4` lädt und zeigt die Anwendung ausschließlich dieses Turnier. Turnierauswahl, Neuanlage, Import und turnierübergreifender Sicherungsverlauf sind ausgeblendet. Anmeldung, Ergebniserfassung, Tagesauslosung, Export und Beameransicht bleiben entsprechend den Berechtigungen verfügbar. Ohne den Parameter erscheint die normale Turnierauswahl.
+
+Sichtbare Zuschauer- und Beameransichten aktualisieren sich alle 15 Sekunden automatisch.
+
+## Datenhaltung und Sicherungen
+
+| Pfad | Inhalt |
+| --- | --- |
+| `data/turniere.json` | Alle Turniere und das Verzeichnis der Änderungen |
+| `data/sicherungen/` | Automatische Sicherungen mit vorherigem und neuem Turnierstand |
+| `data/leitung.json` | Passwort-Hashes und Kennungen für Gesamtverwaltung und Turnierleitungen |
+| `data/sitzungen/` | PHP-Anmeldesitzungen |
+| `data/anmeldeversuche.json` | Daten zur Begrenzung fehlgeschlagener Anmeldeversuche |
+
+Bei jeder Änderung an Turnierdaten wird zuerst eine Sicherung mit Datum und Beschreibung geschrieben. Erst danach ersetzt die Anwendung den aktuellen Stand atomar. Schlägt eine Sicherung fehl, bleiben die aktuellen Daten erhalten. Dateisperren und Versionsprüfungen schützen vor konkurrierenden Schreibzugriffen.
+
+Unter **Sicherungen & Verlauf** können berechtigte Nutzer frühere Stände ansehen und wiederherstellen. Dabei entsteht eine neue Version; andere Turniere bleiben erhalten. Auch gelöschte Turniere lassen sich wiederherstellen. Die Historie beginnt mit der ersten durch diese Funktion gesicherten Änderung. Sicherungen werden dauerhaft aufbewahrt.
+
+**Exportieren** sichert ein einzelnes Turnier als JSON. **Importieren** legt daraus ein zusätzliches Turnier an und ist der Gesamtverwaltung vorbehalten. PINs und Anmeldesitzungen sind nicht Bestandteil eines Turnierexports oder der automatischen Turniersicherungen. Für einen vollständigen Umzug oder eine zusätzliche Gesamtsicherung das gesamte `data/`-Verzeichnis kopieren.
+
+Das Datenverzeichnis ist nicht versioniert. Apache sperrt den direkten Zugriff über die mitgelieferte `.htaccess`; lokal übernimmt dies `router.php`. Bei einem anderen Webserver muss eine entsprechende Zugriffssperre eingerichtet werden.
+
+Die Umgebungsvariable `TURNIER_DATA_FILE` kann den Pfad der Turnierdatei ersetzen. PIN-Konfiguration, Sitzungen und Sicherungen werden dann ebenfalls im Verzeichnis dieser Datei angelegt. Die API-Tests nutzen dies für ein isoliertes temporäres Datenverzeichnis.
+
+Ältere Dateien mit einer reinen Turnierliste werden beim nächsten Speichern automatisch übernommen. Turniere und Sicherungen ohne `sportart` gelten weiterhin als Tischtennis-Doppel.
+
+Anmeldungen verwenden CSRF-Token und Cookies mit `HttpOnly` und `SameSite=Strict`, bei HTTPS zusätzlich `Secure`. PINs werden ausschließlich als Passwort-Hashes gespeichert.
+
+## Projektstruktur
+
+```text
+Turnierverwaltung/
+├── index.html                    # Oberfläche und Dialoge
+├── styles.css                    # Layout, mobile Ansicht und Druckdarstellung
+├── app.js                        # Bedienung, Darstellung und API-Anbindung
+├── turnier-domain.js             # Tabellen, Fortschritt und Platzierungen
+├── schach-domain.js              # Schachwertung und Kreuztabelle
+├── schach-spieltag.js             # Oberfläche für Auslosung und Spieltagshistorie
+├── api.php                       # HTTP-API und gemeinsame Turnierlogik
+├── schach.php                    # Schachspielplan, Ergebnisse und Validierung
+├── schach-auslosung.php           # Tagesauslosung und Spieltagsverwaltung
+├── speicher.php                  # JSON-Speicher, Sperren und Sicherungen
+├── leitung.php                   # PINs, Sitzungen und Berechtigungen
+├── pin-einrichten.php            # CLI zur Einrichtung der PIN der Gesamtverwaltung
+├── router.php                    # Router für den lokalen PHP-Webserver
+├── .htaccess                     # Apache-Routing und Sperre des Datenverzeichnisses
+├── deploy.ps1                    # Deployment über SSH/SCP
+├── package.json                  # Befehle für Syntaxprüfung und Tests
+├── docs/                         # Kurzanleitungen für Turnierleitung und Gesamtverwaltung
+├── scripts/                      # CLI für die bestehende Schachsaison
+├── tests/                        # JavaScript-, PHP- und API-Tests
+└── data/                         # Lokale Laufzeitdaten; wird automatisch angelegt
+```
+
+## Tests
+
+Die vollständige Testsuite unter Windows/PowerShell starten:
 
 ```powershell
 npm.cmd test
 ```
 
-Die Testsuite enthält JavaScript-Unit-Tests für Tabellen und Fortschritt, PHP-Domänentests für Spielpläne, Farbverteilung, K.-o.-Fortschreibung und Ergebniswertung sowie API-Tests für beide Sportarten mit einer isolierten temporären Datendatei.
+In anderen Shells lautet der Befehl `npm test`. PHP und Node.js müssen im `PATH` verfügbar sein.
+
+| Befehl in PowerShell | Prüfung |
+| --- | --- |
+| `npm.cmd run test:syntax` | JavaScript- und PHP-Syntax |
+| `npm.cmd run test:unit` | JavaScript-Tests für Tabellen, Wertung, Fortschritt und Platzierungen |
+| `npm.cmd run test:php` | PHP-Tests für Spielpläne, Farben, K.-o.-Fortschreibung, Auslosung und Ergebnisse |
+| `npm.cmd run test:api` | API-Tests für Speicherung, Berechtigungen, PINs, Sicherungen und Spieltage |
+
+Die API-Tests starten selbst einen lokalen PHP-Testserver auf einem freien Port. Sie verwenden ein temporäres Datenverzeichnis und verändern die regulären Turnierdaten nicht.
+
+## Bestehende Schachsaison 2026/27 übernehmen
+
+Das projektspezifische CLI-Skript legt **Schachturnier 2026/27** mit elf Spielern und zwölf belegten Paarergebnissen aus Rolfs Tabellen an, Stand 16.10.2026:
+
+```powershell
+php scripts/schach-2026-27-anlegen.php
+```
+
+Dies ist ein gezielter Datenimport. Er schreibt in den konfigurierten Datenspeicher und verwendet die reguläre Importvalidierung und automatische Sicherung. Ein erneuter Aufruf lässt ein bereits vorhandenes gleichnamiges Schachturnier unverändert.
+
+Die historischen Summen aus Hin- und Rückspiel entsprechen 24 von 110 abgeschlossenen Partien. Nach der Bestätigung vom 17.10.2026 gab es keine Paarung mit zwei Remis: Ein historisches `1:1` bedeutet je einen Sieg. Farben und Reihenfolge bleiben unbekannt. Bereits abgeschlossene Paarungen stehen nicht mehr für die Auslosung zur Verfügung; die angezeigten Ränge folgen der Wertung der Anwendung.
+
+Die rekonstruierten Spieltage vom 02., 09. und 16.10.2026 erscheinen unter **Bisherige Spieltage**. Quellen und Rekonstruktionshinweise bleiben in den Daten erhalten. Unbelegte Anwesenheit und nicht dokumentierte Partien werden nicht ergänzt.
+
+Für ältere, bereits angelegte Saisonstände gibt es zwei Ergänzungen:
+
+```powershell
+php scripts/schach-2026-27-anlegen.php --spieltage-ergaenzen
+php scripts/schach-2026-27-anlegen.php --einzelwertung-ergaenzen
+```
+
+Der erste Befehl ergänzt die rekonstruierten Spieltage, der zweite die bestätigte Einzelbilanz der historischen Paarergebnisse. Bestehende Ergebnisse bleiben erhalten; Änderungen werden automatisch gesichert. Export und Wiederimport erhalten diese Angaben.
 
 ## Deployment
 
+Das mitgelieferte Skript ist standardmäßig für `https://senioren-luebars.berlin/turnierverwaltung/` konfiguriert.
+
+Zuerst die geplanten Dateien und das Ziel ohne Upload anzeigen:
+
 ```powershell
 .\deploy.ps1 -WhatIfOnly
+```
+
+Für die Übertragung müssen SSH-Zugang und die lokale `data/leitung.json` vorhanden sein. Letztere wird mit `php pin-einrichten.php` angelegt.
+
+```powershell
 .\deploy.ps1
 ```
 
-Das Standardsziel ist `https://senioren-luebars.berlin/turnierverwaltung/`. Die lokale `router.php` wird nicht hochgeladen; Apache verwendet `.htaccess`.
+Das Skript lädt zuerst die `.htaccess` mit der Zugriffssperre für `data/` und anschließend die Anwendungsdateien hoch. Vorhandene Turniere, Sicherungen und PIN-Konfigurationen auf dem Server bleiben erhalten. Nur wenn dort noch keine `data/leitung.json` existiert, wird die lokale PIN-Konfiguration übernommen. Lokale Turnierdaten werden nicht automatisch übertragen; dafür Export und Import verwenden.
 
-Das Deployment lädt zuerst die Zugriffssperre für `data/` hoch. Bestehende Turniere, Sicherungen und PIN-Konfigurationen werden erhalten. Nur bei der Ersteinrichtung wird der lokale PIN-Hash übernommen. Die lokale `data/leitung.json` muss deshalb vor dem ersten Deployment eingerichtet sein.
+Die lokale `router.php`, Tests und Saison-Skripte werden nicht hochgeladen. Apache verwendet die `.htaccess`. Ein anderes Ziel lässt sich mit den Parametern `-Server`, `-User`, `-Port`, `-Webroot` und `-AppPath` angeben.
 
-Das verwendete Reinickendorfer Bezirkssymbol ohne Mauerkrone stammt aus [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Emblem_of_borough_Reinickendorf.svg).
+## Bildquelle
+
+Das verwendete Reinickendorfer Bezirkssymbol ohne Mauerkrone stammt aus [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Emblem_of_borough_Reinickendorf.svg) und liegt als `reinickendorf-wappen.svg` im Projekt.

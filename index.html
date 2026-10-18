@@ -66,7 +66,7 @@
         </nav>
         <div class="nav management-only zugang">
           <span id="leitungsStatus" class="nav-status" role="status">Zuschaueransicht</span>
-          <button id="leitungAnmelden" type="button"><svg class="nav-icon" aria-hidden="true"><use href="#icon-login"></use></svg><span class="nav-label">Turnierleitung anmelden</span></button>
+          <button id="leitungAnmelden" type="button"><svg class="nav-icon" aria-hidden="true"><use href="#icon-login"></use></svg><span class="nav-label">Anmelden</span></button>
           <button id="pinAendern" class="leitung-only" type="button" title="PIN ändern"><svg class="nav-icon" aria-hidden="true"><use href="#icon-key"></use></svg><span class="nav-label">Eigene PIN ändern</span></button>
           <button id="leitungAbmelden" type="button" hidden title="Abmelden"><svg class="nav-icon" aria-hidden="true"><use href="#icon-logout"></use></svg><span class="nav-label">Abmelden</span></button>
         </div>
@@ -78,9 +78,9 @@
 
     <dialog id="leitungDialog" aria-labelledby="leitungTitel">
       <form id="leitungForm">
-        <h2 id="leitungTitel">Turnierleitung anmelden</h2>
-        <p class="hint">PIN der Turnierleitung für das gewählte Turnier oder Superadmin-PIN eingeben.</p>
-        <label>Leitungs-PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="current-password" required></label>
+        <h2 id="leitungTitel">Anmelden</h2>
+        <p class="hint">PIN der Turnierleitung für das gewählte Turnier oder PIN der Gesamtverwaltung eingeben.</p>
+        <label>PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{6,12}" minlength="6" maxlength="12" autocomplete="current-password" required></label>
         <p id="leitungFehler" class="fehler" role="alert" hidden></p>
         <div class="dialog-aktionen"><button id="leitungAbbrechen" class="secondary" type="button">Abbrechen</button><button type="submit">Anmelden</button></div>
       </form>
@@ -193,6 +193,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=62"></script>
+  <script type="module" src="app.js?v=63"></script>
 </body>
 </html>

@@ -281,7 +281,7 @@ test('Fehlgeschlagene Sicherungen lassen aktuelle Daten und Verlauf unverändert
   } finally { await rm(dir); await rename(verschoben, dir); }
 });
 
-test('Turnierleitungen mit eigener PIN bearbeiten nur ihr Turnier, Verwaltung bleibt beim Superadmin', async () => {
+test('Turnierleitungen mit eigener PIN bearbeiten nur ihr Turnier, die Gesamtverwaltung verwaltet alle Turniere', async () => {
   const anlegen = async titel => (await anfrage('anlegen', 'POST', { titel, sportart: 'schach', modus: 'jeder-gegen-jeden',
     teilnehmer: [1, 2, 3].map(nr => ({ spieler: [{ name: `${titel} ${nr}` }] })) })).payload.turnier;
   let eigenes = await anlegen('Eigenes Turnier'); const fremdes = await anlegen('Fremdes Turnier');
@@ -316,7 +316,7 @@ test('Turnierleitungen mit eigener PIN bearbeiten nur ihr Turnier, Verwaltung bl
   assert.equal((await anfrage('anlegen', 'POST', { titel: 'Neu', sportart: 'schach', modus: 'jeder-gegen-jeden', teilnehmer: [] }, tl)).status, 403);
   assert.equal((await anfrage(`loeschen&turnier=${eigenes.id}`, 'DELETE', { version: eigenes.version }, tl)).status, 403);
   assert.equal((await anfrage(`turnier-pin&turnier=${eigenes.id}`, 'POST', { pin: '111111' }, tl)).status, 403);
-  assert.equal((await anfrage('pin', 'POST', { aktuellePin: turnierPin, neuePin: '111111' }, tl)).status, 400, 'Ohne Turnier keine Superadmin-PIN-Änderung.');
+  assert.equal((await anfrage('pin', 'POST', { aktuellePin: turnierPin, neuePin: '111111' }, tl)).status, 400, 'Ohne Turnier keine Änderung der PIN der Gesamtverwaltung.');
 
   const verlauf = (await anfrage('verlauf', 'GET', undefined, tl)).payload.verlauf;
   assert.ok(verlauf.length >= 3 && verlauf.every(eintrag => eintrag.turnierId === eigenes.id));
@@ -331,7 +331,7 @@ test('Turnierleitungen mit eigener PIN bearbeiten nur ihr Turnier, Verwaltung bl
   await anfrage('leitung', 'GET', undefined, zweitesGeraet);
   assert.equal((await anfrage('anmelden', 'POST', { pin: neuePin, turnier: eigenes.id }, zweitesGeraet)).status, 200);
 
-  // Superadmin ersetzt die PIN: bestehende Sitzungen der Turnierleitung verlieren den Zugriff.
+  // Die Gesamtverwaltung ersetzt die PIN: bestehende Sitzungen der Turnierleitung verlieren den Zugriff.
   assert.equal((await anfrage(`turnier-pin&turnier=${eigenes.id}`, 'POST', { pin: '135792' })).status, 200);
   assert.equal((await anfrage('leitung', 'GET', undefined, tl)).payload.leitung.angemeldet, false);
   assert.equal((await anfrage(`umbenennen&turnier=${eigenes.id}`, 'PUT', { version: eigenes.version, titel: 'Zu spät' }, zweitesGeraet)).status, 401);

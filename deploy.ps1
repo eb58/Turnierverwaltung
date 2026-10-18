@@ -26,7 +26,7 @@ if ($WhatIfOnly) {
 }
 
 $localPinFile = Join-Path $projectRoot 'data/leitung.json'
-if (!(Test-Path -LiteralPath $localPinFile -PathType Leaf)) { throw 'Bitte zuerst die Leitungs-PIN mit php pin-einrichten.php einrichten.' }
+if (!(Test-Path -LiteralPath $localPinFile -PathType Leaf)) { throw 'Bitte zuerst die PIN der Gesamtverwaltung mit php pin-einrichten.php einrichten.' }
 
 Write-Host "Bereite Zielverzeichnis vor..." -ForegroundColor Cyan
 ssh -p $Port $sshOpt "${User}@${Server}" "mkdir -p '${remoteApp}/data'"
@@ -41,13 +41,13 @@ Write-Host "Lade App hoch..." -ForegroundColor Cyan
 scp -P $Port $sshOpt @uploadFiles "${User}@${Server}:${remoteApp}/"
 if ($LASTEXITCODE -ne 0) { throw "Upload fehlgeschlagen." }
 
-Write-Host "Pruefe Leitungs-PIN..." -ForegroundColor Cyan
+Write-Host "Pruefe PIN der Gesamtverwaltung..." -ForegroundColor Cyan
 ssh -p $Port $sshOpt "${User}@${Server}" "test -f '${remoteApp}/data/leitung.json'"
 if ($LASTEXITCODE -eq 1) {
     scp -P $Port $sshOpt $localPinFile "${User}@${Server}:${remoteApp}/data/leitung-initial.json"
     if ($LASTEXITCODE -ne 0) { throw 'PIN-Konfiguration konnte nicht uebertragen werden.' }
     ssh -p $Port $sshOpt "${User}@${Server}" "if [ ! -f '${remoteApp}/data/leitung.json' ]; then mv '${remoteApp}/data/leitung-initial.json' '${remoteApp}/data/leitung.json'; else rm -f '${remoteApp}/data/leitung-initial.json'; fi; chmod 600 '${remoteApp}/data/leitung.json'"
-    if ($LASTEXITCODE -ne 0) { throw 'Leitungs-PIN konnte nicht eingerichtet werden.' }
+    if ($LASTEXITCODE -ne 0) { throw 'PIN der Gesamtverwaltung konnte nicht eingerichtet werden.' }
 } elseif ($LASTEXITCODE -ne 0) { throw 'PIN-Konfiguration auf dem Server konnte nicht geprueft werden.' }
 
 Write-Host "Setze Dateirechte..." -ForegroundColor Cyan

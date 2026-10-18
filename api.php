@@ -336,7 +336,7 @@ try {
     if ($method === 'POST' && $action === 'abmelden') respond(['leitung' => leitungAbmelden()]);
     if ($method === 'POST' && $action === 'pin') respond(['leitung' => leitungPinAendern(body())]);
     if ($method !== 'GET') {
-        // Superadmin darf alles; Turnierleitungen nur Aktionen an ihren eigenen Turnieren.
+        // Die Gesamtverwaltung darf alles; Turnierleitungen nur Aktionen an ihren eigenen Turnieren.
         leitungPruefen(true);
         if (in_array($action, ['anlegen', 'importieren', 'loeschen', 'turnier-pin'], true)) superadminPruefen();
         elseif ($action !== 'wiederherstellen') turnierRechtPruefen(filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT));

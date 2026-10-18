@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 function leitungDatei(): string { return datenOrdner() . '/leitung.json'; }
 
-// pinHash/kennung gehören zum Superadmin; unter "turniere" stehen die PINs der einzelnen Turnierleitungen.
+// pinHash/kennung gehören zur Gesamtverwaltung; unter "turniere" stehen die PINs der einzelnen Turnierleitungen.
 function leitungKonfiguration(): ?array
 {
     $config = jsonDatei(leitungDatei());
     if ($config === null) return null;
     $gueltig = fn(mixed $eintrag): bool => is_array($eintrag) && is_string($eintrag['pinHash'] ?? null) && is_string($eintrag['kennung'] ?? null);
     if (!$gueltig($config) || !is_array($config['turniere'] ?? []) || array_filter($config['turniere'] ?? [], fn(mixed $eintrag): bool => !$gueltig($eintrag))) {
-        throw new ApiError('Die Leitungs-PIN konnte nicht geladen werden.', 500);
+        throw new ApiError('Die PIN-Konfiguration konnte nicht geladen werden.', 500);
     }
     $config['turniere'] ??= [];
     return $config;
@@ -34,7 +34,7 @@ function pinEintrag(string $pin): array
     return ['pinHash' => password_hash(pinPruefen($pin), PASSWORD_DEFAULT), 'kennung' => bin2hex(random_bytes(16))];
 }
 
-// Setzt die Superadmin-PIN; die PINs der Turnierleitungen bleiben erhalten.
+// Setzt die PIN der Gesamtverwaltung; die PINs der Turnierleitungen bleiben erhalten.
 function pinSpeichern(string $pin): array
 {
     $config = pinEintrag($pin) + ['turniere' => leitungKonfiguration()['turniere'] ?? []];
@@ -91,14 +91,14 @@ function csrfPruefen(): void
 function leitungPruefen(bool $schreiben = false): array
 {
     $info = leitungInfo();
-    if (!$info['angemeldet']) throw new ApiError('Bitte zuerst als Turnierleitung anmelden.', 401);
+    if (!$info['angemeldet']) throw new ApiError('Bitte zuerst anmelden.', 401);
     if ($schreiben) csrfPruefen();
     return $info;
 }
 
 function superadminPruefen(): void
 {
-    if (!leitungInfo()['superadmin']) throw new ApiError('Das darf nur der Superadmin.', 403);
+    if (!leitungInfo()['superadmin']) throw new ApiError('Das darf nur die Gesamtverwaltung.', 403);
 }
 
 function darfTurnier(array $info, mixed $id): bool
@@ -111,12 +111,12 @@ function turnierRechtPruefen(mixed $id): void
     if (!darfTurnier(leitungInfo(), $id)) throw new ApiError('Für dieses Turnier bist du nicht als Turnierleitung angemeldet.', 403);
 }
 
-// Prüft zuerst die Superadmin-PIN, sonst die PIN des angegebenen Turniers.
+// Prüft zuerst die PIN der Gesamtverwaltung, sonst die PIN des angegebenen Turniers.
 function leitungAnmelden(mixed $pin, mixed $turnierId = null): array
 {
     csrfPruefen();
     $config = leitungKonfiguration();
-    if ($config === null) throw new ApiError('Die Leitungs-PIN wurde noch nicht eingerichtet.', 503);
+    if ($config === null) throw new ApiError('Die PIN der Gesamtverwaltung wurde noch nicht eingerichtet.', 503);
     $turnierEintrag = is_int($turnierId) ? $config['turniere'][(string) $turnierId] ?? null : null;
     $datei = datenOrdner() . '/anmeldeversuche.json';
     $rolle = mitDateiSperre($datei . '.lock', function () use ($datei, $pin, $config, $turnierEintrag): ?string {
@@ -153,7 +153,7 @@ function leitungAbmelden(): array
     return leitungInfo();
 }
 
-// Ohne "turnier" ändert der Superadmin seine PIN, mit "turnier" die Turnierleitung die PIN ihres Turniers.
+// Ohne "turnier" ändert die Gesamtverwaltung ihre PIN, mit "turnier" die Turnierleitung die PIN ihres Turniers.
 function leitungPinAendern(array $payload): array
 {
     $info = leitungPruefen(true);
@@ -179,7 +179,7 @@ function leitungPinAendern(array $payload): array
     return leitungInfo();
 }
 
-// Superadmin vergibt oder ersetzt (pin) bzw. entfernt (pin = null) die PIN einer Turnierleitung.
+// Die Gesamtverwaltung vergibt oder ersetzt (pin) bzw. entfernt (pin = null) die PIN einer Turnierleitung.
 function turnierPinSetzen(int $turnierId, mixed $pin): array
 {
     if ($pin !== null) pinPruefen($pin);

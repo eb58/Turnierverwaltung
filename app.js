@@ -38,7 +38,7 @@ document.addEventListener('keydown', event => { if (event.key === 'Escape' && do
 document.addEventListener('click', event => { if (!event.target.closest('.seitenleiste')) menueOeffnen(false); });
 const state = { turniere: [], ausgewaehlt: Number(parameter.get('turnier')) || null, busy: false, beamer: parameter.has('beamer'), leitung: { eingerichtet: false, angemeldet: false, superadmin: false, turniere: [], csrf: '' }, verlauf: [] };
 const istSuperadmin = () => state.leitung.superadmin && !state.beamer;
-// Turnierleitungen dürfen nur ihr eigenes Turnier bearbeiten, der Superadmin alle.
+// Turnierleitungen dürfen nur ihr eigenes Turnier bearbeiten, die Gesamtverwaltung alle.
 const darfBearbeiten = () => !state.beamer && (state.leitung.superadmin || state.leitung.turniere.includes(state.ausgewaehlt));
 const form = $('turnierForm');
 const paare = $('paare');
@@ -99,13 +99,13 @@ const zugangAktualisieren = () => {
     $(id).dataset.gesperrt = String(!darfBearbeiten());
     $(id).disabled = state.busy || !darfBearbeiten();
   }
-  $('leitungsStatus').textContent = istSuperadmin() ? 'Als Superadmin angemeldet' : darfBearbeiten() ? 'Als Turnierleitung angemeldet'
+  $('leitungsStatus').textContent = istSuperadmin() ? 'Als Gesamtverwaltung angemeldet' : darfBearbeiten() ? 'Als Turnierleitung angemeldet'
     : state.leitung.angemeldet ? 'Für dieses Turnier nur Zuschaueransicht' : 'Zuschaueransicht';
   $('leitungAnmelden').hidden = darfBearbeiten();
   $('leitungAbmelden').hidden = !state.leitung.angemeldet;
   $('leitungAnmelden').dataset.gesperrt = String(!state.leitung.eingerichtet);
   $('leitungAnmelden').disabled = state.busy || !state.leitung.eingerichtet;
-  $('leitungAnmelden').title = state.leitung.eingerichtet ? 'Turnierleitung anmelden' : 'Die Anmeldung ist noch nicht freigeschaltet.';
+  $('leitungAnmelden').title = state.leitung.eingerichtet ? 'Anmelden' : 'Die Anmeldung ist noch nicht freigeschaltet.';
 };
 
 const request = async (action = '', options = {}) => {
@@ -121,7 +121,7 @@ const request = async (action = '', options = {}) => {
       Object.assign(state.leitung, { angemeldet: false, superadmin: false, turniere: [] });
       turnierDialog.close(); $('verlaufDialog').close(); $('pinDialog').close(); $('turnierPinDialog').close();
       render();
-      meldung(payload.error || 'Bitte erneut als Turnierleitung anmelden.');
+      meldung(payload.error || 'Bitte erneut anmelden.');
     }
     throw new Error(payload.error || `HTTP ${response.status}`);
   }
@@ -819,7 +819,7 @@ $('leitungForm').addEventListener('submit', async event => {
   try {
     state.leitung = (await request('anmelden', { method: 'POST', body: JSON.stringify({ pin, turnier: state.ausgewaehlt }) })).leitung;
     const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung;
-    $('leitungDialog').close(); render(); meldung(istSuperadmin() ? 'Als Superadmin angemeldet.' : 'Als Turnierleitung angemeldet.', 'erfolg');
+    $('leitungDialog').close(); render(); meldung(istSuperadmin() ? 'Als Gesamtverwaltung angemeldet.' : 'Als Turnierleitung angemeldet.', 'erfolg');
   } catch (error) { inlineFehler('leitungFehler', error.message); }
   finally { $('leitungForm').elements.pin.value = ''; setBusy(false); }
 });
@@ -835,9 +835,9 @@ $('leitungAbmelden').addEventListener('click', async () => {
 });
 $('pinAendern').addEventListener('click', () => {
   const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
-  $('pinTitel').textContent = istSuperadmin() ? 'Superadmin-PIN ändern' : 'Turnier-PIN ändern';
+  $('pinTitel').textContent = istSuperadmin() ? 'PIN der Gesamtverwaltung ändern' : 'Turnier-PIN ändern';
   $('pinHinweis').textContent = istSuperadmin()
-    ? 'Die Superadmin-PIN gilt für alle Turniere. Andere als Superadmin angemeldete Geräte müssen sich danach erneut anmelden.'
+    ? 'Die PIN der Gesamtverwaltung gilt für alle Turniere. Andere als Gesamtverwaltung angemeldete Geräte müssen sich danach erneut anmelden.'
     : `Die PIN gilt nur für „${turnier?.titel ?? ''}“. Andere angemeldete Geräte dieser Turnierleitung müssen sich danach erneut anmelden.`;
   $('pinForm').reset(); inlineFehler('pinFehler'); $('pinDialog').showModal(); $('pinForm').elements.aktuellePin.focus();
 });
@@ -872,7 +872,7 @@ $('turnierPinOeffnen').addEventListener('click', () => {
   const vorhanden = state.leitung.turnierPins?.includes(turnier.id);
   $('turnierPinHinweis').textContent = vorhanden
     ? `„${turnier.titel}“ hat bereits eine eigene PIN. Eine neue PIN ersetzt sie; angemeldete Geräte der Turnierleitung müssen sich neu anmelden.`
-    : `„${turnier.titel}“ hat noch keine eigene PIN und kann nur vom Superadmin bearbeitet werden.`;
+    : `„${turnier.titel}“ hat noch keine eigene PIN und kann nur von der Gesamtverwaltung bearbeitet werden.`;
   $('turnierPinEntfernen').hidden = !vorhanden;
   $('turnierPinForm').reset(); inlineFehler('turnierPinFehler'); $('turnierPinDialog').showModal(); $('turnierPinForm').elements.neuePin.focus();
 });
@@ -886,7 +886,7 @@ $('turnierPinForm').addEventListener('submit', event => {
 });
 $('turnierPinEntfernen').addEventListener('click', async () => {
   $('turnierPinDialog').close();
-  if (!await dialogOeffnen({ titel: 'Turnier-PIN entfernen?', text: 'Danach kann nur noch der Superadmin dieses Turnier bearbeiten.', bestaetigung: 'PIN entfernen', gefahr: true })) return;
+  if (!await dialogOeffnen({ titel: 'Turnier-PIN entfernen?', text: 'Danach kann nur noch die Gesamtverwaltung dieses Turnier bearbeiten.', bestaetigung: 'PIN entfernen', gefahr: true })) return;
   void turnierPinSpeichern(null);
 });
 
