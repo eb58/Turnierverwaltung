@@ -12,8 +12,8 @@ $projectRoot = $PSScriptRoot
 $serverFiles = @("server/api.php", "server/schach.php", "server/schach-auslosung.php", "server/speicher.php", "server/leitung.php", "server/pin-einrichten.php")
 $clientFiles = @("client/index.html", "client/app.js", "client/turnier-domain.js", "client/schach-domain.js", "client/schach-spieltag.js", "client/styles.css")
 $assetFiles = @("client/assets/tischtennis.svg", "client/assets/schach.svg", "client/assets/reinickendorf-wappen.svg")
-# Dateien der frueheren, flachen Struktur werden nach dem Upload entfernt.
-$legacyFiles = @("api.php", "schach.php", "schach-auslosung.php", "speicher.php", "leitung.php", "pin-einrichten.php", "app.js", "turnier-domain.js", "schach-domain.js", "schach-spieltag.js", "index.html", "reinickendorf-wappen.svg", "styles.css", "assets/tischtennis.svg", "assets/schach.svg")
+# Dateien der frueheren, flachen Struktur und der verworfenen Offline-Funktion werden nach dem Upload entfernt.
+$legacyFiles = @("api.php", "schach.php", "schach-auslosung.php", "speicher.php", "leitung.php", "pin-einrichten.php", "app.js", "turnier-domain.js", "schach-domain.js", "schach-spieltag.js", "index.html", "reinickendorf-wappen.svg", "styles.css", "assets/tischtennis.svg", "assets/schach.svg", "client/offline.js", "client/sw.js", "client/manifest.json")
 $sshOpt = "-o UpdateHostKeys=no"
 $remoteApp = "${Webroot}/${AppPath}"
 function Get-UploadPaths([string[]] $files) {
@@ -23,10 +23,10 @@ function Get-UploadPaths([string[]] $files) {
         $path
     }
 }
-$uploadServer = Get-UploadPaths $serverFiles
-$uploadClient = Get-UploadPaths $clientFiles
-$uploadAssets = Get-UploadPaths $assetFiles
-$rootHtaccess = Get-UploadPaths @(".htaccess")
+$uploadServer = @(Get-UploadPaths $serverFiles)
+$uploadClient = @(Get-UploadPaths $clientFiles)
+$uploadAssets = @(Get-UploadPaths $assetFiles)
+$rootHtaccess = @(Get-UploadPaths @(".htaccess"))
 
 if ($WhatIfOnly) {
     Write-Host "Wuerde nach ${User}@${Server}:${remoteApp}/ hochladen:" -ForegroundColor Yellow
