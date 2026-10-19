@@ -6,9 +6,10 @@
   "scripts": {
     "start": "php -S localhost:8001 -t client server/router.php",
     "test": "npm run test:syntax && npm run test:unit && npm run test:php && npm run test:api",
-    "test:syntax": "node --check client/app.js && node --check client/turnier-domain.js && node --check client/schach-domain.js && node --check client/schach-spieltag.js && php -l server/api.php && php -l server/schach.php && php -l server/schach-auslosung.php && php -l server/speicher.php && php -l server/leitung.php && php -l server/pin-einrichten.php && php -l server/router.php",
+    "test:syntax": "node --check client/app.js && node --check client/turnier-domain.js && node --check client/schach-domain.js && node --check client/schach-spieltag.js && node --check client/offline.js && node --check client/sw.js && php -l server/api.php && php -l server/schach.php && php -l server/schach-auslosung.php && php -l server/speicher.php && php -l server/leitung.php && php -l server/pin-einrichten.php && php -l server/router.php",
     "test:unit": "node --test tests/unit/*.test.js",
     "test:php": "php tests/php/turnier-test.php",
-    "test:api": "node --test tests/api/*.test.js"
+    "test:api": "node --test tests/api/*.test.js",
+    "test:e2e": "node --test tests/e2e/*.test.js"
   }
 }
