@@ -147,21 +147,6 @@ Mit `?turnier=4` lädt und zeigt die Anwendung ausschließlich dieses Turnier. T
 
 Sichtbare Zuschauer- und Beameransichten aktualisieren sich alle 15 Sekunden automatisch.
 
-### Ohne Internetverbindung
-
-Fällt die Verbindung aus, merkt sich das Gerät eingetragene Ergebnisse im Browser (localStorage) und markiert sie mit „Noch nicht übertragen“. Tabelle und Kreuztabelle berücksichtigen sie sofort. Eine Leiste am unteren Rand zeigt den Offline-Zustand und die Zahl der wartenden Ergebnisse. Sobald der Server wieder erreichbar ist, überträgt die App die Ergebnisse automatisch in der eingegebenen Reihenfolge; spätestens nach 30 Sekunden oder beim erneuten Öffnen des Tabs.
-
-Ein Service Worker (`client/sw.js`) hält die Oberfläche auf dem Gerät vor. Die App startet dadurch auch ohne Verbindung, nach einem Neuladen oder Neustart des Tablets, mit dem zuletzt geladenen Turnierstand. Voraussetzung ist, dass sie auf dem Gerät vorher einmal online geöffnet wurde. Über „Zum Startbildschirm hinzufügen“ lässt sie sich wie eine App starten.
-
-Hinweise:
-
-- Offline lassen sich nur Ergebnisse eintragen oder löschen. Auslosung, „Spieltag beenden“, Turnierverwaltung, PINs und Sicherungen benötigen eine Verbindung.
-- Im K.-o.-System rückt ein Sieger erst nach der Übertragung in die nächste Runde vor.
-- Das Gerät muss vorher online angemeldet worden sein. Ist die Anmeldung bei der Übertragung abgelaufen, bleiben die Ergebnisse gemerkt, bis erneut angemeldet wird.
-- Gemerkte Ergebnisse überschreiben beim Übertragen den Serverstand. Das ist für den Betrieb mit einem Erfassungsgerät gedacht.
-- Ergebnisse, die der Server ablehnt, werden verworfen und in einer Meldung genannt.
-- Die gemerkten Ergebnisse liegen nur im Browser dieses Geräts. Browserdaten nicht löschen, solange die Leiste wartende Ergebnisse anzeigt.
-
 ## Datenhaltung und Sicherungen
 
 | Pfad | Inhalt |
@@ -197,9 +182,6 @@ Turnierverwaltung/
 │   ├── turnier-domain.js         # Tabellen, Fortschritt und Platzierungen
 │   ├── schach-domain.js          # Schachwertung und Kreuztabelle
 │   ├── schach-spieltag.js        # Oberfläche für Auslosung und Spieltagshistorie
-│   ├── offline.js                # Offline gemerkte Ergebnisse und zuletzt bekannter Stand
-│   ├── sw.js                     # Service Worker: App-Dateien für den Offline-Start
-│   ├── manifest.json             # App-Manifest für den Startbildschirm
 │   └── assets/                   # Wappen und SVG-Motive für Turnieranzeige und Urkunden
 ├── server/                       # PHP-Backend (nicht direkt per Web abrufbar)
 │   ├── api.php                   # HTTP-API und gemeinsame Turnierlogik
@@ -236,11 +218,8 @@ In anderen Shells lautet der Befehl `npm test`. PHP und Node.js müssen im `PATH
 | `npm.cmd run test:unit` | JavaScript-Tests für Tabellen, Wertung, Fortschritt und Platzierungen |
 | `npm.cmd run test:php` | PHP-Tests für Spielpläne, Farben, K.-o.-Fortschreibung, Auslosung und Ergebnisse |
 | `npm.cmd run test:api` | API-Tests für Speicherung, Berechtigungen, PINs, Sicherungen und Spieltage |
-| `npm.cmd run test:e2e` | Browser-Tests für das Arbeiten ohne Verbindung (nicht Teil von `npm test`) |
 
 Die API-Tests starten selbst einen lokalen PHP-Testserver auf einem freien Port. Sie verwenden ein temporäres Datenverzeichnis und verändern die regulären Turnierdaten nicht.
-
-Die Browser-Tests steuern zusätzlich ein lokales Chrome oder Edge im Hintergrund und brauchen keine weiteren Pakete. Sie beenden den PHP-Testserver, um einen Verbindungsausfall nachzustellen, und prüfen: Ergebnisse offline merken, Start ohne Verbindung über den Service Worker, automatische Übertragung, Verhalten bei abgelaufener Anmeldung und bei vom Server abgelehnten Ergebnissen. Wird kein Browser gefunden, werden die Tests übersprungen; ein abweichender Pfad lässt sich über die Umgebungsvariable `CHROME_PATH` angeben.
 
 ## Bestehende Schachsaison 2026/27 übernehmen
 

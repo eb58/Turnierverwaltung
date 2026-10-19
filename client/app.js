@@ -1,7 +1,6 @@
 import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=7';
 import { istSchach, schachErgebnisText, schachPunkte, schachKreuztabelle } from './schach-domain.js?v=6';
 import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=12';
-import { offlineErgebnisse, ergebnisMerken, ergebnisVergessen, istGemerkt, standMerken, gemerkterStand, mitOfflineErgebnissen } from './offline.js?v=1';
 
 const $ = id => document.getElementById(id);
 const el = (tag, text, className = '') => {
@@ -37,7 +36,7 @@ $('menueUmschalten').addEventListener('click', () => menueOeffnen(!document.body
 $('navigationInhalt').addEventListener('click', event => { if (event.target.closest('button')) menueOeffnen(false); });
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && document.body.classList.contains('menue-offen')) menueOeffnen(false); });
 document.addEventListener('click', event => { if (!event.target.closest('.seitenleiste')) menueOeffnen(false); });
-const state = { turniere: [], ausgewaehlt: Number(parameter.get('turnier')) || null, busy: false, beamer: parameter.has('beamer'), leitung: { eingerichtet: false, angemeldet: false, superadmin: false, turniere: [], csrf: '' }, verlauf: [], offline: false, standZeit: null };
+const state = { turniere: [], ausgewaehlt: Number(parameter.get('turnier')) || null, busy: false, beamer: parameter.has('beamer'), leitung: { eingerichtet: false, angemeldet: false, superadmin: false, turniere: [], csrf: '' }, verlauf: [] };
 const istSuperadmin = () => state.leitung.superadmin && !state.beamer;
 // Turnierleitungen dürfen nur ihr eigenes Turnier bearbeiten, die Gesamtverwaltung alle.
 const darfBearbeiten = () => !state.beamer && (state.leitung.superadmin || state.leitung.turniere.includes(state.ausgewaehlt));
@@ -113,18 +112,11 @@ const zugangAktualisieren = () => {
 
 const request = async (action = '', options = {}) => {
   const query = action ? `?action=${action}` : einzelAnsicht ? `?turnier=${encodeURIComponent(festesTurnierId)}` : '';
-  let response;
-  try {
-    response = await fetch(`api.php${query}`, {
-      ...options,
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.leitung.csrf, ...options.headers },
-    });
-  } catch {
-    state.offline = true; offlineStatusAnzeigen();
-    throw Object.assign(new Error('Keine Verbindung zum Server.'), { offline: true });
-  }
-  if (state.offline) { state.offline = false; offlineStatusAnzeigen(); }
+  const response = await fetch(`api.php${query}`, {
+    ...options,
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.leitung.csrf, ...options.headers },
+  });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (response.status === 401 && action !== 'anmelden') {
@@ -133,18 +125,9 @@ const request = async (action = '', options = {}) => {
       render();
       meldung(payload.error || 'Bitte erneut anmelden.');
     }
-    throw Object.assign(new Error(payload.error || `HTTP ${response.status}`), { status: response.status });
+    throw new Error(payload.error || `HTTP ${response.status}`);
   }
   return payload;
-};
-
-const offlineStatusAnzeigen = () => {
-  const anzahl = offlineErgebnisse().length;
-  const teile = [];
-  if (state.offline) teile.push(state.standZeit ? `Offline · Stand vom ${zeitText(state.standZeit)}` : 'Offline');
-  if (anzahl) teile.push(anzahl === 1 ? '1 Ergebnis noch nicht übertragen' : `${anzahl} Ergebnisse noch nicht übertragen`);
-  $('offlineStatus').textContent = teile.join(' · ');
-  $('offlineStatus').hidden = !teile.length;
 };
 
 const modusName = modus => modus === 'ko' ? 'K.-o.-System' : 'Jeder gegen jeden';
@@ -358,71 +341,16 @@ const renderKreuztabelle = turnier => {
   table.append(tbody); wrap.append(table); abschnitt.append(wrap); return abschnitt;
 };
 
-const ergebnisAction = (turnierId, spielId) => `ergebnis&turnier=${turnierId}&spiel=${encodeURIComponent(spielId)}`;
-
-const offlineSpeichern = (turnier, spiel, body) => {
-  try { ergebnisMerken(turnier.id, spiel.id, body); }
-  catch { meldung('Keine Verbindung, und das Ergebnis konnte auch auf diesem Gerät nicht gespeichert werden.'); return; }
-  state.turniere = mitOfflineErgebnissen(state.turniere);
-  render();
-  meldung('Ohne Verbindung auf diesem Gerät gespeichert. Das Ergebnis wird automatisch übertragen.', 'erfolg');
-};
-
-const ergebnisSenden = async (turnier, spiel, body, erfolgstext = 'Ergebnis gespeichert.') => {
+const mutation = async (action, body, erfolgstext = 'Ergebnis gespeichert.') => {
   if (state.busy) return;
-  // Solange gemerkte Ergebnisse warten, reiht sich ein neues dahinter ein, damit die Reihenfolge erhalten bleibt.
-  if (state.offline || offlineErgebnisse().length) { offlineSpeichern(turnier, spiel, body); void abgleichen(); return; }
   setBusy(true); meldung('');
   try {
-    const result = await request(ergebnisAction(turnier.id, spiel.id), { method: 'PUT', body: JSON.stringify({ version: turnier.version, ...body }) });
-    state.turniere = state.turniere.map(item => item.id === result.turnier.id ? result.turnier : item);
+    const result = await request(action, { method: 'PUT', body: JSON.stringify(body) });
+    state.turniere = state.turniere.map(turnier => turnier.id === result.turnier.id ? result.turnier : turnier);
     render();
     meldung(erfolgstext, 'erfolg');
-  } catch (error) {
-    if (error.offline) offlineSpeichern(turnier, spiel, body);
-    else meldung(error.message);
-  } finally { setBusy(false); }
-};
-
-// Überträgt gemerkte Ergebnisse der Reihe nach auf den aktuellen Serverstand.
-let abgleichLaeuft = false;
-const abgleichen = async () => {
-  if (abgleichLaeuft || state.busy || !offlineErgebnisse().length) return;
-  abgleichLaeuft = true; setBusy(true);
-  let turniere = state.turniere, geladen = false, uebertragen = 0;
-  const abgelehnt = [];
-  try {
-    const result = await request();
-    state.leitung = result.leitung; turniere = result.turniere; geladen = true;
-    for (const eintrag of offlineErgebnisse()) {
-      const turnier = turniere.find(item => item.id === eintrag.turnier);
-      if (!turnier) {
-        // Die Einzelansicht lädt nur ihr eigenes Turnier; andere Einträge überträgt die Gesamtansicht.
-        if (!einzelAnsicht) { ergebnisVergessen(eintrag.turnier, eintrag.spiel); abgelehnt.push('Turnier nicht mehr vorhanden'); }
-        continue;
-      }
-      try {
-        const antwort = await request(ergebnisAction(turnier.id, eintrag.spiel), { method: 'PUT', body: JSON.stringify({ version: turnier.version, ...eintrag.body }) });
-        turniere = turniere.map(item => item.id === antwort.turnier.id ? antwort.turnier : item);
-        ergebnisVergessen(eintrag.turnier, eintrag.spiel); uebertragen++;
-      } catch (error) {
-        // Ohne Verbindung oder Anmeldung bleibt das Ergebnis gemerkt; ein ungültiges Ergebnis rettet auch kein neuer Versuch.
-        if (error.offline || [401, 403, 409].includes(error.status)) throw error;
-        ergebnisVergessen(eintrag.turnier, eintrag.spiel); abgelehnt.push(`${turnier.titel}: ${error.message}`);
-      }
-    }
-  } catch (error) {
-    const rest = offlineErgebnisse().length;
-    if (error.status === 401) meldung(rest === 1 ? 'Bitte anmelden, damit das gemerkte Ergebnis übertragen wird.' : `Bitte anmelden, damit ${rest} gemerkte Ergebnisse übertragen werden.`);
-    else if (!error.offline) meldung(error.message);
-  } finally {
-    state.turniere = mitOfflineErgebnissen(turniere);
-    if (geladen) state.standZeit = Date.now();
-    abgleichLaeuft = false;
-    render(); setBusy(false);
-  }
-  if (abgelehnt.length) meldung(`Vom Server abgelehnt und verworfen: ${abgelehnt.join('; ')}`);
-  else if (uebertragen) meldung(uebertragen === 1 ? 'Gemerktes Ergebnis übertragen.' : `${uebertragen} gemerkte Ergebnisse übertragen.`, 'erfolg');
+  } catch (error) { meldung(error.message); }
+  finally { setBusy(false); }
 };
 
 const speichern = async (turnier, spiel, body) => {
@@ -432,7 +360,7 @@ const speichern = async (turnier, spiel, body) => {
       text: 'Bei einem geänderten Sieger werden betroffene Folgespiele zurückgesetzt.',
       bestaetigung: 'Ergebnis ändern',
     })) return;
-  await ergebnisSenden(turnier, spiel, body);
+  await mutation(`ergebnis&turnier=${turnier.id}&spiel=${encodeURIComponent(spiel.id)}`, { version: turnier.version, ...body });
 };
 
 const aktuelleRundeIndex = turnier => {
@@ -491,11 +419,10 @@ const renderSchachErgebnis = (turnier, spiel, titel, names) => {
     loeschen.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z"/></svg>';
     loeschen.addEventListener('click', async () => {
       if (!await dialogOeffnen({ titel: 'Ergebnis löschen?', text: 'Das gespeicherte Ergebnis wird entfernt.', bestaetigung: 'Ergebnis löschen', gefahr: true })) return;
-      void ergebnisSenden(turnier, spiel, { punkteA: null, punkteB: null }, 'Ergebnis gelöscht.');
+      void mutation(`ergebnis&turnier=${turnier.id}&spiel=${encodeURIComponent(spiel.id)}`, { version: turnier.version, punkteA: null, punkteB: null }, 'Ergebnis gelöscht.');
     });
     ergebnisForm.append(loeschen);
   }
-  if (istGemerkt(turnier.id, spiel.id)) ergebnisForm.append(el('span', 'Noch nicht übertragen', 'offline-markierung'));
   return ergebnisForm;
 };
 
@@ -638,7 +565,7 @@ const renderDetails = () => {
             if (wertA === '' && wertB === '') {
               if (spiel.status !== 'fertig') { meldung('Bitte ein Spielergebnis eingeben.'); return; }
               if (!await dialogOeffnen({ titel: 'Ergebnis löschen?', text: 'Das gespeicherte Ergebnis wird entfernt.', bestaetigung: 'Ergebnis löschen', gefahr: true })) return;
-              void ergebnisSenden(turnier, spiel, { saetze: [] }, 'Ergebnis gelöscht.');
+              void mutation(`ergebnis&turnier=${turnier.id}&spiel=${encodeURIComponent(spiel.id)}`, { version: turnier.version, saetze: [] }, 'Ergebnis gelöscht.');
               return;
             }
             if (wertA === '' || wertB === '') { meldung('Bitte beide Ergebnisfelder ausfüllen.'); return; }
@@ -656,7 +583,7 @@ const renderDetails = () => {
           if (!saetze.length) {
             if (spiel.status !== 'fertig') { meldung('Bitte das Satzergebnis eingeben.'); return; }
             if (!await dialogOeffnen({ titel: 'Ergebnis löschen?', text: 'Das gespeicherte Ergebnis wird entfernt.', bestaetigung: 'Ergebnis löschen', gefahr: true })) return;
-            void ergebnisSenden(turnier, spiel, { saetze: [] }, 'Ergebnis gelöscht.');
+            void mutation(`ergebnis&turnier=${turnier.id}&spiel=${encodeURIComponent(spiel.id)}`, { version: turnier.version, saetze: [] }, 'Ergebnis gelöscht.');
             return;
           }
           speichern(turnier, spiel, { saetze });
@@ -667,7 +594,6 @@ const renderDetails = () => {
         }
         card.append(ergebnisForm);
         if (ergebnisInfo) card.append(ergebnisInfo);
-        if (istGemerkt(turnier.id, spiel.id)) card.append(el('p', 'Noch nicht übertragen', 'offline-markierung'));
       }
       spiele.append(card);
     }
@@ -696,34 +622,14 @@ const render = () => {
   $('siegerurkunden').dataset.gesperrt = String(urkundenGesperrt);
   $('siegerurkunden').disabled = urkundenGesperrt;
   renderDetails();
-  offlineStatusAnzeigen();
-  // Das CSRF-Token gehört zur Sitzung und wird nicht dauerhaft gespeichert.
-  if (state.standZeit) standMerken({ turniere: state.turniere, leitung: { ...state.leitung, csrf: '' }, zeit: state.standZeit });
-};
-
-const standUebernehmen = result => {
-  state.turniere = mitOfflineErgebnissen(result.turniere); state.leitung = result.leitung; state.standZeit = Date.now();
-  render();
-};
-
-// Ohne Verbindung startet die App mit dem zuletzt bekannten Stand und den gemerkten Ergebnissen.
-const gemerktenStandLaden = () => {
-  const stand = gemerkterStand();
-  if (!stand) { meldung('Keine Verbindung zum Server.'); return; }
-  state.turniere = mitOfflineErgebnissen(stand.turniere); state.leitung = { ...state.leitung, ...stand.leitung }; state.standZeit = stand.zeit;
-  render();
 };
 
 const load = async () => {
   if (state.busy) return;
   setBusy(true); meldung('');
-  try { standUebernehmen(await request()); }
-  catch (error) {
-    if (!error.offline) meldung(error.message);
-    else if (!state.standZeit) gemerktenStandLaden();
-  }
+  try { const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung; render(); }
+  catch (error) { meldung(error.message); }
   finally { setBusy(false); }
-  void abgleichen();
 };
 
 const turnierFormZuruecksetzen = () => {
@@ -938,11 +844,10 @@ $('leitungForm').addEventListener('submit', async event => {
   setBusy(true); inlineFehler('leitungFehler');
   try {
     state.leitung = (await request('anmelden', { method: 'POST', body: JSON.stringify({ pin, turnier: state.ausgewaehlt }) })).leitung;
-    const result = await request();
-    $('leitungDialog').close(); standUebernehmen(result); meldung(istSuperadmin() ? 'Als Gesamtverwaltung angemeldet.' : 'Als Turnierleitung angemeldet.', 'erfolg');
+    const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung;
+    $('leitungDialog').close(); render(); meldung(istSuperadmin() ? 'Als Gesamtverwaltung angemeldet.' : 'Als Turnierleitung angemeldet.', 'erfolg');
   } catch (error) { inlineFehler('leitungFehler', error.message); }
   finally { $('leitungForm').elements.pin.value = ''; setBusy(false); }
-  void abgleichen();
 });
 $('leitungAbmelden').addEventListener('click', async () => {
   if (state.busy) return;
@@ -1095,10 +1000,4 @@ $('verlaufSchliessen').addEventListener('click', () => $('verlaufDialog').close(
 turnierFormZuruecksetzen();
 document.body.classList.toggle('beamer', state.beamer);
 setInterval(() => { if ((state.beamer || !darfBearbeiten()) && !document.hidden && !$('leitungDialog').open) void load(); }, 15000);
-// Gemerkte Ergebnisse werden übertragen, sobald das Gerät wieder online ist oder geweckt wird.
-window.addEventListener('online', () => void load());
-document.addEventListener('visibilitychange', () => { if (!document.hidden) void abgleichen(); });
-setInterval(() => { if (!document.hidden) void abgleichen(); }, 30000);
 void load();
-// Der Service Worker hält die App auf dem Gerät vor, damit sie auch ohne Verbindung startet.
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
