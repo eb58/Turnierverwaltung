@@ -59,7 +59,7 @@ export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm }) 
 const auslosungOffen = new Map();
 
 export const renderSchachSpieltag = (turnier, hilfe) => {
-  const { el, bearbeiten, busy, setBusy, request, aktualisieren, meldung, bestaetigen, ergebnisForm, paarungsText, anmelden, abgeschlossen, sieger } = hilfe;
+  const { el, bearbeiten, busy, setBusy, request, aktualisieren, meldung, bestaetigen, ergebnisForm, paarungsText, abgeschlossen, sieger } = hilfe;
   const letzter = turnier.spieltage?.at(-1), aktiv = letzter?.status === 'aktiv';
   const section = el('section', undefined, 'spieltag');
   if (abgeschlossen && !aktiv) {
@@ -68,18 +68,13 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
     if (sieger.length) section.append(el('p', `${sieger.length > 1 ? 'Turniersieger (geteilt)' : 'Turniersieger'}: ${sieger.map(person => person.name).join(', ')}`, 'erfolg'));
     return section;
   }
+  // Ohne laufenden Spieltag gibt es für Zuschauer nichts anzuzeigen.
+  if (!bearbeiten && !aktiv) return null;
   section.setAttribute('aria-label', 'Anwesenheit und Auslosung');
   section.append(el('h3', aktiv ? 'Aktueller Spieltag' : 'Neuer Spieltag'));
   const namen = new Map(turnier.teilnehmer.map(person => [person.id, person.name]));
   const spiele = new Map(turnier.runden.flat().map(spiel => [spiel.id, spiel]));
   const begonnen = aktiv && letzter.gruppen.some(gruppe => gruppe.spiele.some(id => spiele.get(id)?.status === 'fertig'));
-  if (!bearbeiten && !aktiv) {
-    section.append(el('p', 'Noch keine Paarungen ausgelost.', 'muted'));
-    if (anmelden) {
-      const button = el('button', 'Spieltag starten', 'management-only'); button.type = 'button';
-      button.addEventListener('click', anmelden); section.append(button);
-    }
-  }
   if (bearbeiten && begonnen) section.append(el('p', 'Für diesen Spieltag wurden bereits Ergebnisse erfasst. Neu auslosen ist nicht mehr möglich; für eine neue Auslosung zuerst den Spieltag beenden.', 'hint management-only'));
   if (bearbeiten && !begonnen) {
     const form = el('form', undefined, 'auslosung-form management-only');

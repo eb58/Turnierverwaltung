@@ -174,12 +174,50 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
 .einzelansicht #neuesTurnier, .einzelansicht #importieren,
 .einzelansicht #verlaufOeffnen, .einzelansicht #turnierLoeschen { display: none; }
 .zuschauer.einzelansicht .nav-gruppe:first-child { display: none; }
+.rangtabelle { width: auto; min-width: min(100%, 560px); border-collapse: separate; border-spacing: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.rangtabelle th, .rangtabelle td { padding: .6rem .8rem; border-bottom: 1px solid #e2e8f0; }
+.rangtabelle thead th { color: #fff; background: var(--accent-dark); border-bottom: 0; font-size: .82rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+.rangtabelle tbody tr:nth-child(even) { background: #f8fafc; }
+.rangtabelle tbody tr:last-child td { border-bottom: 0; }
+.rangtabelle tbody tr:hover { background: var(--surface-2); }
+.rangtabelle .rang { width: 1%; text-align: center; }
+.rangtabelle .name { font-weight: 650; white-space: normal; overflow-wrap: anywhere; min-width: 10rem; max-width: 22rem; }
+.rangtabelle .zahl { text-align: center; font-variant-numeric: tabular-nums; }
+.rangtabelle td.haupt { color: var(--accent-dark); font-size: 1.08em; font-weight: 800; }
+.rangtabelle thead th.haupt { background: var(--accent); }
+.rang-marke { display: inline-grid; place-items: center; min-width: 2rem; height: 2rem; padding: 0 .35rem; color: var(--muted); background: #f1f5f9; border-radius: 999px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.rangtabelle .platz-1 .rang-marke { color: #713f12; background: linear-gradient(135deg, #fde68a, #f59e0b); box-shadow: 0 2px 6px rgba(245, 158, 11, .35); }
+.rangtabelle .platz-2 .rang-marke { color: #334155; background: linear-gradient(135deg, #f1f5f9, #94a3b8); box-shadow: 0 2px 6px rgba(100, 116, 139, .3); }
+.rangtabelle .platz-3 .rang-marke { color: #fff; background: linear-gradient(135deg, #fdba74, #b45309); box-shadow: 0 2px 6px rgba(180, 83, 9, .3); }
+.rangtabelle tbody tr.platz-1 { background: #fffbeb; }
+.tabellen { width: fit-content; max-width: 100%; }
+.tabellen .rangtabelle, .tabellen .kreuztabelle table { width: 100%; }
+.tabellen caption, .tabellen .spieltag, .tabellen .spieltag-historie { contain: inline-size; }
 .kreuztabelle { margin: 0 0 1.2rem; }
-.kreuztabelle summary { margin-bottom: .6rem; }
-.kreuztabelle td, .kreuztabelle th { text-align: center; }
-.kreuztabelle th[scope="row"], .kreuztabelle thead th:first-child { text-align: left; }
-.kreuztabelle .diagonale { background: #e2e8f0; color: #64748b; }
-.kreuztabelle .offene-partie { color: #64748b; }
+.kreuztabelle summary { margin-bottom: .6rem; color: var(--accent-dark); cursor: pointer; font-weight: 750; }
+.kreuztabelle table { width: auto; border-collapse: separate; border-spacing: 0; background: var(--surface); border: 1px solid #94a3b8; border-radius: 10px; overflow: hidden; }
+.kreuztabelle th, .kreuztabelle td { padding: .45rem .6rem; text-align: center; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.kreuztabelle tr > :last-child { border-right: 0; }
+.kreuztabelle tbody tr:last-child > * { border-bottom: 0; }
+.kreuztabelle thead th { color: #fff; background: var(--accent-dark); border-color: rgba(255, 255, 255, .2); font-weight: 700; }
+.kreuztabelle thead th.gegner { min-width: 3rem; cursor: help; }
+.kreuztabelle .nr { color: var(--muted); background: #f8fafc; font-weight: 700; }
+.kreuztabelle thead .nr { color: #fff; background: var(--accent-dark); }
+.kreuztabelle .name { min-width: 9rem; text-align: left; font-weight: 650; background: #f8fafc; }
+.kreuztabelle thead .name { background: var(--accent-dark); }
+.kreuztabelle tbody .name { position: sticky; left: 0; z-index: 1; box-shadow: 1px 0 0 var(--border); }
+.kreuztabelle .ergebnis-feld { min-width: 3rem; font-weight: 650; }
+.kreuztabelle .sieg { color: #065f46; background: #d1fae5; }
+.kreuztabelle .remis { color: #854d0e; background: #fef9c3; }
+.kreuztabelle .niederlage { color: #991b1b; background: #fee2e2; }
+.kreuztabelle .offene-partie { color: var(--muted); background: #fff; }
+.kreuztabelle .diagonale { background: repeating-linear-gradient(135deg, #e2e8f0 0 6px, #cbd5e1 6px 8px); }
+.kreuztabelle .summe { min-width: 3.5rem; font-weight: 700; background: var(--surface-2); }
+.kreuztabelle thead .summe { background: var(--accent); }
+.kreuztabelle tbody tr > .summe:nth-last-child(2) { border-left: 2px solid var(--accent); }
+.kreuztabelle thead tr > .summe:nth-last-child(2) { border-left: 2px solid var(--accent-dark); }
+.kreuztabelle td.punkte { color: var(--accent-dark); font-size: 1.08em; font-weight: 800; }
+.kreuztabelle tbody tr:hover > td:not(.diagonale), .kreuztabelle tbody tr:hover > th { filter: brightness(.96); }
 .verlauf-dialog { width: min(1100px, calc(100% - 2rem)); max-height: calc(100vh - 2rem); }
 .verlauf-inhalt { padding: 1.25rem; }
 .verlauf-inhalt > p, .verlauf-inhalt > select { margin-bottom: 1rem; }
@@ -237,4 +275,5 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
   .vergangener-spieltag:not([open]) > *:not(summary) { display: block; }
   .kreuztabelle:not([open]) > *:not(summary) { display: block; }
   .kreuztabelle { break-inside: avoid; }
+  .rangtabelle, .kreuztabelle table { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }

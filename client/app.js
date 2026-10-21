@@ -1,6 +1,6 @@
 import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=7';
 import { istSchach, schachErgebnisText, schachPunkte, schachKreuztabelle } from './schach-domain.js?v=6';
-import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=12';
+import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=13';
 
 const $ = id => document.getElementById(id);
 const el = (tag, text, className = '') => {
@@ -290,18 +290,25 @@ const aktualisiereFantasiePaarSichtbarkeit = () => {
 
 const renderTabelle = turnier => {
   const schach = istSchach(turnier);
-  const wrap = el('div', undefined, 'table-wrap'), table = el('table');
+  const wrap = el('div', undefined, 'table-wrap'), table = el('table', undefined, 'rangtabelle');
   table.append(el('caption', schach ? 'Rangfolge: Punkte, direkter Vergleich innerhalb der punktgleichen Gruppe (sobald vollständig gespielt), sonst gleicher Rang.' : 'Rangfolge: Siege, Satzdifferenz, direkter Vergleich.'));
   const thead = el('thead'), header = el('tr');
-  for (const text of schach ? ['Rang', 'Spieler', 'Partien', 'Siege', 'Remis', 'Niederlagen', 'Punkte'] : ['Rang', 'Doppelpaar', 'Spiele', 'Siege', 'Niederlagen', 'Sätze', 'Differenz']) {
-    const th = el('th', text); th.scope = 'col'; header.append(th);
-  }
+  // Die letzte Spalte ist das Hauptkriterium und wird hervorgehoben.
+  const spalten = schach ? ['Rang', 'Spieler', 'Partien', 'Siege', 'Remis', 'Niederlagen', 'Punkte'] : ['Rang', 'Doppelpaar', 'Spiele', 'Siege', 'Niederlagen', 'Sätze', 'Differenz'];
+  const klasse = index => index === 0 ? 'rang' : index === 1 ? 'name' : index === spalten.length - 1 ? 'zahl haupt' : 'zahl';
+  spalten.forEach((text, index) => {
+    const th = el('th', text, klasse(index)); th.scope = 'col'; header.append(th);
+  });
   thead.append(header); table.append(thead);
   const tbody = el('tbody');
   for (const zeile of turnierTabelle(turnier)) {
-    const row = el('tr');
-    const werte = schach ? [zeile.rang, zeile.name, zeile.spiele, ...[zeile.siege, zeile.remis, zeile.niederlagen].map(wert => zeile.wertungUnbekannt ? '—' : wert), schachPunkte(zeile.punkte)] : [zeile.rang, zeile.name, zeile.spiele, zeile.siege, zeile.niederlagen, `${zeile.fuer}:${zeile.gegen}`, zeile.fuer - zeile.gegen];
-    for (const text of werte) row.append(el('td', text));
+    const row = el('tr', undefined, zeile.rang <= 3 && zeile.spiele > 0 ? `platz-${zeile.rang}` : '');
+    const differenz = zeile.fuer - zeile.gegen;
+    const werte = schach ? [zeile.rang, zeile.name, zeile.spiele, ...[zeile.siege, zeile.remis, zeile.niederlagen].map(wert => zeile.wertungUnbekannt ? '—' : wert), schachPunkte(zeile.punkte)] : [zeile.rang, zeile.name, zeile.spiele, zeile.siege, zeile.niederlagen, `${zeile.fuer}:${zeile.gegen}`, differenz > 0 ? `+${differenz}` : differenz];
+    werte.forEach((text, index) => {
+      if (index === 0) { const td = el('td', undefined, 'rang'); td.append(el('span', text, 'rang-marke')); row.append(td); return; }
+      row.append(el('td', text, klasse(index)));
+    });
     tbody.append(row);
   }
   table.append(tbody); wrap.append(table);
@@ -312,31 +319,39 @@ const renderKreuztabelle = turnier => {
   const abschnitt = el('details', undefined, 'kreuztabelle'); abschnitt.open = true;
   abschnitt.append(el('summary', 'Kreuztabelle'));
   const wrap = el('div', undefined, 'table-wrap'), table = el('table');
-  table.append(el('caption', 'Zeile gegen Spalte: Punkte gegen den jeweiligen Gegner.'));
+  table.append(el('caption', 'Zeile gegen Spalte: Punkte gegen den jeweiligen Gegner. Die Spaltennummern entsprechen der Nummer vor dem Namen.'));
   const head = el('thead'), header = el('tr');
-  for (const text of ['Spieler', ...turnier.teilnehmer.map(person => person.name), 'Punkte']) {
-    const th = el('th', text); th.scope = 'col'; header.append(th);
-  }
+  const kopf = (text, className = '', title = '') => { const th = el('th', text, className); th.scope = 'col'; if (title) th.title = title; header.append(th); };
+  kopf('Nr.', 'nr'); kopf('Spieler', 'name');
+  turnier.teilnehmer.forEach((person, index) => kopf(String(index + 1), 'gegner', person.name));
+  kopf('Punkte', 'summe'); kopf('Rang', 'summe');
   head.append(header); table.append(head);
-  const punkte = new Map(turnierTabelle(turnier).map(person => [person.id, person.punkte]));
+  const tabelle = new Map(turnierTabelle(turnier).map(person => [person.id, person]));
+  // Gewonnene, remisierte und verlorene Begegnungen werden farblich unterschieden.
+  const wertung = (erzielt, moeglich) => erzielt > moeglich / 2 ? 'sieg' : erzielt < moeglich / 2 ? 'niederlage' : 'remis';
   const tbody = el('tbody');
-  schachKreuztabelle(turnier).forEach(zeile => {
+  schachKreuztabelle(turnier).forEach((zeile, nummer) => {
     const row = el('tr');
-    const name = el('th', zeile.name); name.scope = 'row'; row.append(name);
+    row.append(el('td', String(nummer + 1), 'nr'));
+    const name = el('th', zeile.name, 'name'); name.scope = 'row'; row.append(name);
     zeile.felder.forEach((feld, gegner) => {
       if (feld?.gesamt !== undefined) {
-        const td = el('td', schachPunkte(feld.gesamt));
+        const td = el('td', schachPunkte(feld.gesamt), `ergebnis-feld ${wertung(feld.gesamt, 2)}`);
         td.title = 'Punkte aus Hin- und Rückspiel.';
         td.setAttribute('aria-label', `${zeile.name} gegen ${turnier.teilnehmer[gegner].name}: ${schachPunkte(feld.gesamt)} Punkte aus Hin- und Rückspiel`);
         row.append(td); return;
       }
       const partien = feld === null ? [] : (feld.partien ?? [feld]);
+      const offen = partien.some(partie => partie.punkte === null);
       const text = partien.every(partie => partie.punkte === null) ? '' : partien.map(partie => partie.punkte === null ? '·' : schachPunkte(partie.punkte)).join(' / ');
-      const td = el('td', feld === null ? '—' : text, feld === null ? 'diagonale' : partien.some(partie => partie.punkte === null) ? 'offene-partie' : '');
+      const summe = partien.reduce((gesamt, partie) => gesamt + (partie.punkte ?? 0), 0);
+      const td = el('td', feld === null ? '' : text, feld === null ? 'diagonale' : offen ? 'ergebnis-feld offene-partie' : `ergebnis-feld ${wertung(summe, partien.length)}`);
       td.setAttribute('aria-label', feld === null ? 'Keine Partie gegen sich selbst' : `${zeile.name} gegen ${turnier.teilnehmer[gegner].name}: ${partien.map((partie, index) => `Partie ${index + 1}: ${partie.punkte === null ? 'noch offen' : `${schachPunkte(partie.punkte)} Punkte`}`).join('; ')}`);
       td.title = td.getAttribute('aria-label'); row.append(td);
     });
-    row.append(el('td', schachPunkte(punkte.get(zeile.id)))); tbody.append(row);
+    const person = tabelle.get(zeile.id);
+    row.append(el('td', schachPunkte(person.punkte), 'summe punkte'), el('td', String(person.rang), 'summe'));
+    tbody.append(row);
   });
   table.append(tbody); wrap.append(table); abschnitt.append(wrap); return abschnitt;
 };
@@ -429,7 +444,6 @@ const renderSchachErgebnis = (turnier, spiel, titel, names) => {
 const spieltagAnsicht = (turnier, bearbeiten) => renderSchachSpieltag(turnier, {
   el, bearbeiten, busy: () => state.busy, setBusy, request, meldung, bestaetigen: dialogOeffnen,
   abgeschlossen: turnierIstAbgeschlossen(turnier), sieger: turnierPlatzierungen(turnier).filter(zeile => zeile.platz === 1),
-  anmelden: () => $('leitungAnmelden').click(),
   ergebnisForm: renderSchachErgebnis, paarungsText,
   aktualisieren: geaendert => {
     state.turniere = state.turniere.map(item => item.id === geaendert.id ? geaendert : item);
@@ -488,14 +502,17 @@ const renderDetails = () => {
   const kopf = el('div', undefined, 'turnier-kopf toolbar');
   kopf.append(renderTurnierTitel(turnier));
   details.append(kopf, el('p', `${sportartName(turnier)} · ${modusName(turnier.modus)} · ${wertungsName(turnier)} · ${turnier.teilnehmer.length} ${istSchach(turnier) ? 'Spieler' : 'Doppelpaare'} · ${fortschritt.fertig} von ${fortschritt.gesamt} ${istSchach(turnier) ? 'Partien' : 'Spielen'} abgeschlossen`, 'muted'));
+  // Gemeinsamer Rahmen, damit Spieltage, Tabelle und Kreuztabelle gleich breit sind.
+  const tabellen = el('div', undefined, 'tabellen');
   if (istSchach(turnier)) {
     const spieltag = spieltagAnsicht(turnier, darfBearbeiten());
-    if (spieltag) details.append(spieltag);
+    if (spieltag) (turnier.modus === 'jeder-gegen-jeden' ? tabellen : details).append(spieltag);
   }
 
   if (turnier.modus === 'jeder-gegen-jeden') {
-    details.append(el('h3', 'Tabelle'), renderTabelle(turnier));
-    if (istSchach(turnier)) details.append(renderKreuztabelle(turnier));
+    tabellen.append(el('h3', 'Tabelle'), renderTabelle(turnier));
+    if (istSchach(turnier)) tabellen.append(renderKreuztabelle(turnier));
+    details.append(tabellen);
     if (!istSchach(turnier) && fortschritt.fertig === fortschritt.gesamt) details.append(el('p', 'Turnier abgeschlossen.', 'erfolg'));
   } else {
     const finale = turnier.runden.at(-1)[0];
@@ -504,7 +521,7 @@ const renderDetails = () => {
 
   if (istSchach(turnier)) {
     const historie = renderSchachHistorie(turnier, { el, bearbeiten: darfBearbeiten(), ergebnisForm: renderSchachErgebnis });
-    if (historie) details.append(historie);
+    if (historie) (tabellen.isConnected ? tabellen : details).append(historie);
     return;
   }
 
@@ -942,8 +959,9 @@ const sicherungAnsehen = async (eintrag, seite) => {
       } catch (error) { inlineFehler('verlaufFehler', error.message); }
       finally { setBusy(false); }
     });
-    toolbar.append(wiederherstellen); vorschau.append(toolbar, renderTabelle(turnier));
-    if (istSchach(turnier)) vorschau.append(renderKreuztabelle(turnier));
+    const tabellen = el('div', undefined, 'tabellen'); tabellen.append(renderTabelle(turnier));
+    if (istSchach(turnier)) tabellen.append(renderKreuztabelle(turnier));
+    toolbar.append(wiederherstellen); vorschau.append(toolbar, tabellen);
     const plan = el('details'); plan.append(el('summary', 'Gesicherten Spielplan ansehen'));
     const names = new Map(turnier.teilnehmer.map(item => [item.id, item.name]));
     turnier.runden.forEach((runde, index) => {
