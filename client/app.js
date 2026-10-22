@@ -1,6 +1,6 @@
 import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=7';
 import { istSchach, schachErgebnisText, schachPunkte, schachKreuztabelle } from './schach-domain.js?v=6';
-import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=13';
+import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=14';
 
 const $ = id => document.getElementById(id);
 const el = (tag, text, className = '') => {
@@ -96,6 +96,8 @@ const setBusy = busy => {
 
 const zugangAktualisieren = () => {
   document.body.classList.toggle('zuschauer', !darfBearbeiten());
+  // Ohne Turnier-Link und ohne Anmeldung gibt es nichts zu sehen außer dem Anmelden-Button.
+  document.body.classList.toggle('nur-anmeldung', !einzelAnsicht && !state.leitung.angemeldet);
   document.body.classList.toggle('kein-superadmin', !istSuperadmin());
   for (const id of ['drucken', 'exportieren']) {
     $(id).dataset.gesperrt = String(!darfBearbeiten());
@@ -404,7 +406,7 @@ const tischText = (turnier, termin, anzahlSpiele) => {
 };
 
 const paarungsText = (turnier, spiel, names) => istSchach(turnier)
-  ? spiel.altErgebnis ? `${names.get(spiel.a)} – ${names.get(spiel.b)} (historische Paarung)` : `${names.get(spiel.a)} (Weiß) – ${names.get(spiel.b)} (Schwarz)`
+  ? spiel.altErgebnis ? `${names.get(spiel.a)} – ${names.get(spiel.b)} (historische Paarung)` : `${names.get(spiel.a)} – ${names.get(spiel.b)}`
   : `${names.get(spiel.a) ?? 'Sieger der Vorrunde'} – ${names.get(spiel.b) ?? (spiel.status === 'freilos' ? 'Freilos' : 'Sieger der Vorrunde')}`;
 
 const schachErgebnisInfo = (spiel, names) => spiel.altErgebnis ? schachErgebnisText(spiel) : `${schachErgebnisText(spiel)} · ${spiel.sieger === null ? 'Remis' : `Sieger: ${names.get(spiel.sieger)}`}`;
@@ -495,7 +497,7 @@ const renderDetails = () => {
   details.replaceChildren();
   details.className = 'panel';
   const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
-  if (!turnier) { details.append(el('p', 'Noch kein Turnier angelegt.', 'muted')); return; }
+  if (!turnier) { details.append(el('p', einzelAnsicht || state.leitung.angemeldet ? 'Noch kein Turnier angelegt.' : 'Bitte anmelden, um die Turniere zu verwalten.', 'muted')); return; }
   if (state.beamer) { renderBeamer(turnier); return; }
   const names = new Map(turnier.teilnehmer.map(item => [item.id, item.name]));
   const fortschritt = turnierFortschritt(turnier);
@@ -871,6 +873,7 @@ $('leitungAbmelden').addEventListener('click', async () => {
   setBusy(true);
   try {
     state.leitung = (await request('abmelden', { method: 'POST', body: '{}' })).leitung;
+    if (!einzelAnsicht) state.turniere = [];
     turnierDialog.close(); $('verlaufDialog').close(); $('pinDialog').close(); $('turnierPinDialog').close();
     render(); meldung('Abgemeldet. Die Zuschaueransicht ist aktiv.', 'erfolg');
   } catch (error) { meldung(error.message); }
@@ -964,6 +967,7 @@ const sicherungAnsehen = async (eintrag, seite) => {
     toolbar.append(wiederherstellen); vorschau.append(toolbar, tabellen);
     const plan = el('details'); plan.append(el('summary', 'Gesicherten Spielplan ansehen'));
     const names = new Map(turnier.teilnehmer.map(item => [item.id, item.name]));
+    if (istSchach(turnier)) plan.append(el('p', 'Der jeweils zuerst genannte Spieler hat Weiß.', 'hint'));
     turnier.runden.forEach((runde, index) => {
       plan.append(el('h4', rundenTitel(turnier, index)));
       runde.forEach(spiel => plan.append(el('p', `${paarungsText(turnier, spiel, names)} · ${spiel.status === 'fertig' ? (istSchach(turnier) ? schachErgebnisText(spiel) : `${spiel.punkteA}:${spiel.punkteB}`) : spiel.status === 'freilos' ? 'Freilos' : 'offen'}`)));

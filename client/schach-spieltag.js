@@ -24,6 +24,7 @@ export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm }) 
     details.append(el('summary', `${index + 1}. Spieltag · ${datumText(tag.datum)} · Spieltag beendet · ${partienText}${ergebnisText}`));
     if (bearbeiten && nachtragbar) details.append(el('p', 'Offene Partien dieses Spieltags können hier nachgetragen werden, solange sie nicht an einem späteren Spieltag neu ausgelost wurden.', 'hint management-only'));
     details.append(el('p', `${tag.anwesenheitVollstaendig === false ? 'Mitgespielt' : 'Anwesend'}: ${tag.anwesend.map(id => namen.get(id)).join(', ')}`, 'muted'));
+    if (tag.gruppen?.length) details.append(el('p', 'Der jeweils zuerst genannte Spieler hat Weiß.', 'hint'));
     const tabelle = el('table'), head = el('thead'), kopf = el('tr');
     for (const titel of ['Paarung', tag.paarungen ? 'Hin- und Rückspiel gesamt' : 'Ergebnis']) {
       const th = el('th', titel); th.scope = 'col'; kopf.append(th);
@@ -41,7 +42,7 @@ export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm }) 
         if (spaeter && spaeter !== tag) zelle.textContent = `neu ausgelost am ${datumText(spaeter.datum)}`;
         else if (bearbeiten) zelle.append(ergebnisForm(turnier, s, `Spieltag ${tag.datum}`, namen));
         else zelle.textContent = s.status === 'fertig' ? schachErgebnisText(s) : 'offen';
-        row.append(el('td', `${namen.get(s.a)} (Weiß) – ${namen.get(s.b)} (Schwarz)`), zelle);
+        row.append(el('td', `${namen.get(s.a)} – ${namen.get(s.b)}`), zelle);
         body.append(row);
       }
       for (const frei of gruppe.freiePaarungen) {
@@ -152,7 +153,7 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
       grid.append(card);
     });
     if (freieAnzahl) section.append(el('p', `${freieAnzahl} freie ${freieAnzahl === 1 ? 'Partie' : 'Partien'} ergänzt, damit alle Anwesenden spielen können. Diese Ergebnisse fließen nicht in die Turniertabelle ein.`, 'hint'));
-    section.append(grid);
+    section.append(el('p', 'Der jeweils zuerst genannte Spieler hat Weiß.', 'hint'), grid);
     if (bearbeiten && aktiv) {
       const ende = el('button', 'Spieltag beenden', 'secondary management-only'); ende.type = 'button';
       ende.addEventListener('click', async () => {

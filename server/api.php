@@ -392,7 +392,9 @@ try {
         $leitung = leitungInfo();
         respond(withStore(function (array &$turniere) use ($leitung, $id): array {
             if ($leitung['superadmin']) ungespielteKoTurniereUmstellen($turniere);
-            $auswahl = $id === null ? $turniere : [$turniere[turnierIndex($turniere, $id)]];
+            // Ohne Turnier-Link sieht man nur die Turniere, für die man angemeldet ist.
+            $auswahl = $id !== null ? [$turniere[turnierIndex($turniere, $id)]]
+                : array_values(array_filter($turniere, fn(array $turnier): bool => darfTurnier($leitung, $turnier['id'])));
             return ['turniere' => $auswahl, 'leitung' => $leitung];
         }, $leitung['superadmin']));
     }

@@ -210,9 +210,10 @@ test('Schach-API verwaltet 10 bis 12 Spieler, Remis, Korrekturen und Sicherungen
   assert.ok(geladen.payload.turniere.some(item => item.sportart === 'tischtennis'));
 });
 
-test('Zuschauer lesen Turniere, können aber weder schreiben noch Sicherungen lesen', async () => {
+test('Zuschauer sehen ohne Turnier-Link keine Turniere und können weder schreiben noch Sicherungen lesen', async () => {
   const publicData = await anfrage('', 'GET', undefined, gast);
   assert.equal(publicData.status, 200);
+  assert.deepEqual(publicData.payload.turniere, []);
   assert.equal(publicData.payload.leitung.angemeldet, false);
   assert.equal(publicData.payload.leitung.eingerichtet, true);
   assert.equal(publicData.payload.verlauf, undefined);
@@ -429,7 +430,7 @@ test('API speichert Anwesenheit, Dreiergruppe und Spieltagsabschluss versionssic
   assert.equal((await anfrage(`auslosen&turnier=${turnier.id}`, 'POST', { ...auswahl, version: 1 })).status, 409);
   assert.equal((await anfrage(`turnier&turnier=${turnier.id}`, 'PUT', { ...turnier, durchgaenge: 1 })).status, 400);
   assert.equal((await anfrage(`teilnehmer&turnier=${turnier.id}`, 'PUT', { version: turnier.version, teilnehmer: turnier.teilnehmer.slice(0, 10) })).status, 400);
-  const publicStand = (await anfrage('', 'GET', undefined, gast)).payload.turniere.find(item => item.id === turnier.id);
+  const publicStand = (await (await fetch(`${basisUrl}/api.php?turnier=${turnier.id}`, { headers: { Cookie: gast.cookie } })).json()).turniere[0];
   assert.deepEqual(publicStand.spieltage, turnier.spieltage);
   const spielId = tag.gruppen[0].spiele[0];
   turnier = (await anfrage(`ergebnis&turnier=${turnier.id}&spiel=${spielId}`, 'PUT', { version: turnier.version, punkteA: 0.5, punkteB: 0.5 })).payload.turnier;
