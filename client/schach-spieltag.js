@@ -19,7 +19,9 @@ export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm }) 
     const nachtragbar = schachNachtragbar(turnier, tag, letzterTag).length;
     details.open = historieOffen.get(tag.id) ?? false;
     details.addEventListener('toggle', () => historieOffen.set(tag.id, details.open));
-    const partienText = `${anzahl} ${anzahl === 1 ? 'Partie' : 'Partien'}${tag.paarungen ? '' : ' angesetzt'}`;
+    // Ausgeloste Spieltage gelten erst als gespielt, wenn jede Partie ein Ergebnis hat.
+    const offen = tag.gruppen?.some(g => g.spiele.some(id => spiele.get(id)?.status !== 'fertig'));
+    const partienText = `${anzahl} ${anzahl === 1 ? 'Partie' : 'Partien'}${offen ? ' angesetzt' : ''}`;
     const ergebnisText = nachtragbar ? ` · ${nachtragbar} ${nachtragbar === 1 ? 'Ergebnis offen' : 'Ergebnisse offen'}` : '';
     details.append(el('summary', `${index + 1}. Spieltag · ${datumText(tag.datum)} · Spieltag beendet · ${partienText}${ergebnisText}`));
     if (bearbeiten && nachtragbar) details.append(el('p', 'Offene Partien dieses Spieltags können hier nachgetragen werden, solange sie nicht an einem späteren Spieltag neu ausgelost wurden.', 'hint management-only'));
