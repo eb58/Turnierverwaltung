@@ -13,12 +13,12 @@ Die Funktionen stehen links in der Seitenleiste, auf dem Smartphone im Menü.
 
 1. Unter **Neuer Spieltag** das Datum prüfen und die anwesenden Spieler markieren. Mindestens zwei Spieler auswählen.
 2. **Paarungen auslosen** anklicken. Es werden nur offene Turnierpartien ausgelost. Bei ungerader Anwesenheit spielt die zuerst genannte Person einer Dreiergruppe nacheinander gegen die beiden anderen.
-3. Bei jeder Partie das Ergebnis wählen: **1:0 · Weiß gewinnt**, **½:½ · Remis** oder **0:1 · Schwarz gewinnt**. **Die Auswahl wird sofort gespeichert.** Anschließend die angezeigte Bestätigung prüfen.
+3. Bei jeder Partie das Ergebnis wählen: **1:0** (Weiß gewinnt), **½:½** (Remis) oder **0:1** (Schwarz gewinnt). **Die Auswahl wird sofort gespeichert.** Anschließend die angezeigte Bestätigung prüfen.
 4. Zum Abschluss **Spieltag beenden** wählen und bestätigen. Der Tag erscheint unter **Bisherige Spieltage**.
 
 **Neu auslosen** ist möglich, solange der laufende Spieltag keine gespeicherten Ergebnisse enthält. Danach für eine neue Auslosung zuerst den Spieltag beenden. Ist keine vollständige Einteilung möglich, die Anwesenheitsauswahl prüfen und anpassen.
 
-Ein falsches Ergebnis über die Auswahl korrigieren oder mit dem Papierkorb neben dem Ergebnis löschen. Offene Ergebnisse beendeter Spieltage können unter **Bisherige Spieltage** nachgetragen werden, solange die Partie nicht später neu ausgelost wurde.
+Ein falsches Ergebnis über die Auswahl korrigieren oder mit dem Papierkorb neben dem Ergebnis löschen. Beendete Spieltage unter **Bisherige Spieltage** sind schreibgeschützt. Zum Korrigieren oder Nachtragen offener Ergebnisse beim Spieltag **Ergebnisse bearbeiten** wählen und danach **Bearbeiten beenden**. Offene Partien lassen sich nur nachtragen, solange sie nicht später neu ausgelost wurden.
 
 ## 3. Tischtennisergebnisse erfassen
 

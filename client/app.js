@@ -1,6 +1,6 @@
 import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=7';
 import { istSchach, schachErgebnisText, schachPunkte, schachKreuztabelle } from './schach-domain.js?v=6';
-import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=15';
+import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=17';
 
 const $ = id => document.getElementById(id);
 const el = (tag, text, className = '') => {
@@ -415,7 +415,7 @@ const renderSchachErgebnis = (turnier, spiel, titel, names) => {
   const ergebnisForm = el('form', undefined, 'ergebnis');
   const auswahl = el('select'); auswahl.name = 'ergebnis'; auswahl.required = true;
   auswahl.setAttribute('aria-label', `${titel}: Ergebnis ${names.get(spiel.a)} (Weiß) gegen ${names.get(spiel.b)} (Schwarz)`);
-  for (const [wert, text] of [['', 'Ergebnis wählen …'], ['1:0', '1:0 · Weiß gewinnt'], ['0.5:0.5', '½:½ · Remis'], ['0:1', '0:1 · Schwarz gewinnt']]) {
+  for (const [wert, text] of [['', 'Ergebnis wählen …'], ['1:0', '1:0'], ['0.5:0.5', '½:½'], ['0:1', '0:1']]) {
     const option = el('option', text); option.value = wert; auswahl.append(option);
   }
   const gespeichert = spiel.status === 'fertig' ? `${spiel.punkteA}:${spiel.punkteB}` : '';
@@ -522,7 +522,7 @@ const renderDetails = () => {
   }
 
   if (istSchach(turnier)) {
-    const historie = renderSchachHistorie(turnier, { el, bearbeiten: darfBearbeiten(), ergebnisForm: renderSchachErgebnis });
+    const historie = renderSchachHistorie(turnier, { el, bearbeiten: darfBearbeiten(), ergebnisForm: renderSchachErgebnis, neuZeichnen: render });
     if (historie) (tabellen.isConnected ? tabellen : details).append(historie);
     return;
   }

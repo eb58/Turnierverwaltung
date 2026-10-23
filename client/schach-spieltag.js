@@ -1,9 +1,10 @@
 import { schachErgebnisText, schachLetzterSpieltag, schachNachtragbar, schachPunkte } from './schach-domain.js?v=6';
 
 const historieOffen = new Map();
+const historieBearbeiten = new Map();
 const datumText = datum => datum.split('-').reverse().join('.');
 
-export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm }) => {
+export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm, neuZeichnen }) => {
   const tage = [...(turnier.historischeSpieltage ?? []), ...(turnier.spieltage ?? []).filter(tag => tag.status === 'beendet')]
     .sort((a, b) => a.datum.localeCompare(b.datum));
   if (!tage.length) return null;
@@ -24,7 +25,10 @@ export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm }) 
     const partienText = `${anzahl} ${anzahl === 1 ? 'Partie' : 'Partien'}${offen ? ' angesetzt' : ''}`;
     const ergebnisText = nachtragbar ? ` · ${nachtragbar} ${nachtragbar === 1 ? 'Ergebnis offen' : 'Ergebnisse offen'}` : '';
     details.append(el('summary', `${index + 1}. Spieltag · ${datumText(tag.datum)} · Spieltag beendet · ${partienText}${ergebnisText}`));
-    if (bearbeiten && nachtragbar) details.append(el('p', 'Offene Partien dieses Spieltags können hier nachgetragen werden, solange sie nicht an einem späteren Spieltag neu ausgelost wurden.', 'hint management-only'));
+    // Beendete Spieltage sind schreibgeschützt, bis die Turnierleitung sie ausdrücklich zur Bearbeitung öffnet.
+    const korrigierbar = bearbeiten && tag.gruppen?.some(g => g.spiele.some(id => { const spaeter = letzterTag.get(id); return !spaeter || spaeter === tag; }));
+    const imBearbeiten = korrigierbar && (historieBearbeiten.get(tag.id) ?? false);
+    if (bearbeiten && nachtragbar) details.append(el('p', `Offene Partien dieses Spieltags können nachgetragen werden, solange sie nicht an einem späteren Spieltag neu ausgelost wurden.${imBearbeiten ? '' : ' Dazu „Ergebnisse bearbeiten“ wählen.'}`, 'hint management-only'));
     details.append(el('p', `${tag.anwesenheitVollstaendig === false ? 'Mitgespielt' : 'Anwesend'}: ${tag.anwesend.map(id => namen.get(id)).join(', ')}`, 'muted'));
     if (tag.gruppen?.length) details.append(el('p', 'Der jeweils zuerst genannte Spieler hat Weiß.', 'hint'));
     const tabelle = el('table'), head = el('thead'), kopf = el('tr');
@@ -42,7 +46,7 @@ export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm }) 
       for (const id of gruppe.spiele) {
         const s = spiele.get(id), row = el('tr'), zelle = el('td'), spaeter = letzterTag.get(id);
         if (spaeter && spaeter !== tag) zelle.textContent = `neu ausgelost am ${datumText(spaeter.datum)}`;
-        else if (bearbeiten) zelle.append(ergebnisForm(turnier, s, `Spieltag ${tag.datum}`, namen));
+        else if (imBearbeiten) zelle.append(ergebnisForm(turnier, s, `Spieltag ${tag.datum}`, namen));
         else zelle.textContent = s.status === 'fertig' ? schachErgebnisText(s) : 'offen';
         row.append(el('td', `${namen.get(s.a)} – ${namen.get(s.b)}`), zelle);
         body.append(row);
@@ -54,6 +58,11 @@ export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm }) 
       }
     }
     tabelle.append(body); const wrap = el('div', undefined, 'table-wrap'); wrap.append(tabelle); details.append(wrap);
+    if (korrigierbar) {
+      const umschalten = el('button', imBearbeiten ? 'Bearbeiten beenden' : 'Ergebnisse bearbeiten', 'secondary management-only'); umschalten.type = 'button';
+      umschalten.addEventListener('click', () => { historieBearbeiten.set(tag.id, !imBearbeiten); neuZeichnen(); });
+      details.append(umschalten);
+    }
     section.append(details);
   });
   return section;
@@ -81,10 +90,14 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
   if (bearbeiten && begonnen) section.append(el('p', 'Für diesen Spieltag wurden bereits Ergebnisse erfasst. Neu auslosen ist nicht mehr möglich; für eine neue Auslosung zuerst den Spieltag beenden.', 'hint management-only'));
   if (bearbeiten && !begonnen) {
     const form = el('form', undefined, 'auslosung-form management-only');
-    const heute = new Date();
+    const jetzt = new Date();
+    const heute = `${jetzt.getFullYear()}-${String(jetzt.getMonth() + 1).padStart(2, '0')}-${String(jetzt.getDate()).padStart(2, '0')}`;
+    // Ein vergessener Spieltag aus der Vergangenheit soll nicht unbemerkt sein altes Datum weitergeben.
+    const veraltet = aktiv && letzter.datum < heute;
+    if (veraltet) section.append(el('p', `Der Spieltag vom ${datumText(letzter.datum)} wurde nicht beendet. Für die neue Auslosung ist das heutige Datum eingetragen.`, 'hint management-only'));
     const datumLabel = el('label', 'Datum des Spieltags'), datum = el('input');
     datum.type = 'date'; datum.name = 'datum'; datum.required = true;
-    datum.value = aktiv ? letzter.datum : `${heute.getFullYear()}-${String(heute.getMonth() + 1).padStart(2, '0')}-${String(heute.getDate()).padStart(2, '0')}`;
+    datum.value = aktiv && !veraltet ? letzter.datum : heute;
     datumLabel.append(datum);
     const auswahl = el('fieldset', undefined, 'anwesenheit'); auswahl.append(el('legend', 'Wer ist heute anwesend?'));
     const checkboxen = [];
