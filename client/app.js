@@ -345,8 +345,9 @@ const renderKreuztabelle = turnier => {
       }
       const partien = feld === null ? [] : (feld.partien ?? [feld]);
       const offen = partien.some(partie => partie.punkte === null);
-      const text = partien.every(partie => partie.punkte === null) ? '' : partien.map(partie => partie.punkte === null ? '·' : schachPunkte(partie.punkte)).join(' / ');
       const summe = partien.reduce((gesamt, partie) => gesamt + (partie.punkte ?? 0), 0);
+      // Sind alle Partien gespielt, wird die Summe angezeigt, sonst die Einzelergebnisse.
+      const text = partien.every(partie => partie.punkte === null) ? '' : offen ? partien.map(partie => partie.punkte === null ? '·' : schachPunkte(partie.punkte)).join(' / ') : schachPunkte(summe);
       const td = el('td', feld === null ? '' : text, feld === null ? 'diagonale' : offen ? 'ergebnis-feld offene-partie' : `ergebnis-feld ${wertung(summe, partien.length)}`);
       td.setAttribute('aria-label', feld === null ? 'Keine Partie gegen sich selbst' : `${zeile.name} gegen ${turnier.teilnehmer[gegner].name}: ${partien.map((partie, index) => `Partie ${index + 1}: ${partie.punkte === null ? 'noch offen' : `${schachPunkte(partie.punkte)} Punkte`}`).join('; ')}`);
       td.title = td.getAttribute('aria-label'); row.append(td);
