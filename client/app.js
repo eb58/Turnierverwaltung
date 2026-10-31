@@ -325,11 +325,11 @@ const renderKreuztabelle = original => {
   const abschnitt = el('details', undefined, 'kreuztabelle'); abschnitt.open = true;
   abschnitt.append(el('summary', 'Kreuztabelle'));
   const wrap = el('div', undefined, 'table-wrap'), table = el('table');
-  table.append(el('caption', 'Zeile gegen Spalte: Punkte gegen den jeweiligen Gegner. Sortiert nach Rang; die Spaltennummern entsprechen der Nummer vor dem Namen.'));
+  table.append(el('caption', 'Zeile gegen Spalte: Punkte gegen den jeweiligen Gegner. Sortiert nach Rang.'));
   const head = el('thead'), header = el('tr');
   const kopf = (text, className = '', title = '') => { const th = el('th', text, className); th.scope = 'col'; if (title) th.title = title; header.append(th); };
   kopf('Nr.', 'nr'); kopf('Spieler', 'name');
-  turnier.teilnehmer.forEach((person, index) => kopf(String(index + 1), 'gegner', person.name));
+  turnier.teilnehmer.forEach(person => kopf(person.name, 'gegner'));
   kopf('Punkte', 'summe'); kopf('Rang', 'summe');
   head.append(header); table.append(head);
   // Gewonnene, remisierte und verlorene Begegnungen werden farblich unterschieden.

@@ -201,7 +201,7 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
 .kreuztabelle tr > :last-child { border-right: 0; }
 .kreuztabelle tbody tr:last-child > * { border-bottom: 0; }
 .kreuztabelle thead th { color: #fff; background: var(--accent-dark); border-color: rgba(255, 255, 255, .2); font-weight: 700; }
-.kreuztabelle thead th.gegner { min-width: 3rem; cursor: help; }
+.kreuztabelle thead th.gegner { min-width: 3rem; padding: .6rem .3rem; vertical-align: bottom; cursor: help; writing-mode: vertical-rl; white-space: nowrap; }
 .kreuztabelle .nr { color: var(--muted); background: #f8fafc; font-weight: 700; }
 .kreuztabelle thead .nr { color: #fff; background: var(--accent-dark); }
 .kreuztabelle .name { min-width: 9rem; text-align: left; font-weight: 650; background: #f8fafc; }
@@ -261,6 +261,17 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
   .vergangener-spieltag td { display: block; padding: .2rem 0; border: 0; white-space: normal; }
   .vergangener-spieltag .ergebnis { flex-wrap: nowrap; }
   .vergangener-spieltag .ergebnis > select { min-width: 0; }
+  .rangtabelle { min-width: 0; font-size: .85rem; }
+  .rangtabelle th, .rangtabelle td { padding: .4rem .35rem; }
+  .rangtabelle thead th { font-size: .66rem; letter-spacing: 0; }
+  .rangtabelle .name { min-width: 5.5rem; }
+  .rang-marke { min-width: 1.5rem; height: 1.5rem; padding: 0 .2rem; font-size: .8rem; }
+  .kreuztabelle table { font-size: .8rem; }
+  .kreuztabelle th, .kreuztabelle td { padding: .3rem .25rem; }
+  .kreuztabelle thead th.gegner { min-width: 0; padding: .4rem .2rem; }
+  .kreuztabelle .ergebnis-feld, .kreuztabelle .summe { min-width: 0; }
+  .kreuztabelle .name { min-width: 5rem; max-width: 7rem; }
+  .kreuztabelle .nr { display: none; }
 }
 @media print {
   body { background: white; }
