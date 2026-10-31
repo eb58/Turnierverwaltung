@@ -295,9 +295,9 @@ const renderTabelle = turnier => {
   const wrap = el('div', undefined, 'table-wrap'), table = el('table', undefined, 'rangtabelle');
   table.append(el('caption', schach ? 'Rangfolge: Punkte, direkter Vergleich innerhalb der punktgleichen Gruppe (sobald vollständig gespielt), sonst gleicher Rang.' : 'Rangfolge: Siege, Satzdifferenz, direkter Vergleich.'));
   const thead = el('thead'), header = el('tr');
-  // Die letzte Spalte ist das Hauptkriterium und wird hervorgehoben.
-  const spalten = schach ? ['Rang', 'Spieler', 'Partien', 'Siege', 'Remis', 'Niederlagen', 'Punkte'] : ['Rang', 'Doppelpaar', 'Spiele', 'Siege', 'Niederlagen', 'Sätze', 'Differenz'];
-  const klasse = index => index === 0 ? 'rang' : index === 1 ? 'name' : index === spalten.length - 1 ? 'zahl haupt' : 'zahl';
+  // Die Hauptkriterium-Spalte wird hervorgehoben (Schach: Punkte nach dem Namen, sonst die letzte Spalte).
+  const spalten = schach ? ['Rang', 'Spieler', 'Punkte', 'Partien', 'Siege', 'Remis', 'Niederlagen'] : ['Rang', 'Doppelpaar', 'Spiele', 'Siege', 'Niederlagen', 'Sätze', 'Differenz'];
+  const klasse = index => index === 0 ? 'rang' : index === 1 ? 'name' : index === (schach ? 2 : spalten.length - 1) ? 'zahl haupt' : 'zahl';
   spalten.forEach((text, index) => {
     const th = el('th', text, klasse(index)); th.scope = 'col'; header.append(th);
   });
@@ -306,7 +306,7 @@ const renderTabelle = turnier => {
   for (const zeile of turnierTabelle(turnier)) {
     const row = el('tr', undefined, zeile.rang <= 3 && zeile.spiele > 0 ? `platz-${zeile.rang}` : '');
     const differenz = zeile.fuer - zeile.gegen;
-    const werte = schach ? [zeile.rang, zeile.name, zeile.spiele, ...[zeile.siege, zeile.remis, zeile.niederlagen].map(wert => zeile.wertungUnbekannt ? '—' : wert), schachPunkte(zeile.punkte)] : [zeile.rang, zeile.name, zeile.spiele, zeile.siege, zeile.niederlagen, `${zeile.fuer}:${zeile.gegen}`, differenz > 0 ? `+${differenz}` : differenz];
+    const werte = schach ? [zeile.rang, zeile.name, schachPunkte(zeile.punkte), zeile.spiele, ...[zeile.siege, zeile.remis, zeile.niederlagen].map(wert => zeile.wertungUnbekannt ? '—' : wert)] : [zeile.rang, zeile.name, zeile.spiele, zeile.siege, zeile.niederlagen, `${zeile.fuer}:${zeile.gegen}`, differenz > 0 ? `+${differenz}` : differenz];
     werte.forEach((text, index) => {
       if (index === 0) { const td = el('td', undefined, 'rang'); td.append(el('span', text, 'rang-marke')); row.append(td); return; }
       row.append(el('td', text, klasse(index)));
@@ -317,18 +317,21 @@ const renderTabelle = turnier => {
   return wrap;
 };
 
-const renderKreuztabelle = turnier => {
+const renderKreuztabelle = original => {
+  // Zeilen und Spalten folgen der Rangfolge der Tabelle, damit die Nummern in beiden Achsen übereinstimmen.
+  const rangfolge = turnierTabelle(original);
+  const tabelle = new Map(rangfolge.map(person => [person.id, person]));
+  const turnier = { ...original, teilnehmer: rangfolge.map(person => original.teilnehmer.find(teilnehmer => teilnehmer.id === person.id)) };
   const abschnitt = el('details', undefined, 'kreuztabelle'); abschnitt.open = true;
   abschnitt.append(el('summary', 'Kreuztabelle'));
   const wrap = el('div', undefined, 'table-wrap'), table = el('table');
-  table.append(el('caption', 'Zeile gegen Spalte: Punkte gegen den jeweiligen Gegner. Die Spaltennummern entsprechen der Nummer vor dem Namen.'));
+  table.append(el('caption', 'Zeile gegen Spalte: Punkte gegen den jeweiligen Gegner. Sortiert nach Rang; die Spaltennummern entsprechen der Nummer vor dem Namen.'));
   const head = el('thead'), header = el('tr');
   const kopf = (text, className = '', title = '') => { const th = el('th', text, className); th.scope = 'col'; if (title) th.title = title; header.append(th); };
   kopf('Nr.', 'nr'); kopf('Spieler', 'name');
   turnier.teilnehmer.forEach((person, index) => kopf(String(index + 1), 'gegner', person.name));
   kopf('Punkte', 'summe'); kopf('Rang', 'summe');
   head.append(header); table.append(head);
-  const tabelle = new Map(turnierTabelle(turnier).map(person => [person.id, person]));
   // Gewonnene, remisierte und verlorene Begegnungen werden farblich unterschieden.
   const wertung = (erzielt, moeglich) => erzielt > moeglich / 2 ? 'sieg' : erzielt < moeglich / 2 ? 'niederlage' : 'remis';
   const tbody = el('tbody');
