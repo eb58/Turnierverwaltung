@@ -114,11 +114,17 @@ const zugangAktualisieren = () => {
 
 const request = async (action = '', options = {}) => {
   const query = action ? `?action=${action}` : einzelAnsicht ? `?turnier=${encodeURIComponent(festesTurnierId)}` : '';
-  const response = await fetch(`api.php${query}`, {
-    ...options,
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.leitung.csrf, ...options.headers },
-  });
+  let response;
+  try {
+    response = await fetch(`api.php${query}`, {
+      ...options,
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.leitung.csrf, ...options.headers },
+    });
+  } catch {
+    // Ohne Antwort meldet der Browser nur "Failed to fetch", etwa bei kurz unterbrochenem WLAN oder nach dem Ruhezustand.
+    throw Object.assign(new Error('Keine Verbindung zum Server. Bitte die Internetverbindung prüfen und es erneut versuchen.'), { netzwerk: true });
+  }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (response.status === 401 && action !== 'anmelden') {
@@ -647,11 +653,19 @@ const render = () => {
   renderDetails();
 };
 
-const load = async () => {
+// Die automatische Aktualisierung übergeht kurze Verbindungsaussetzer und meldet erst wiederholte Fehlschläge.
+let fehlgeschlageneAktualisierungen = 0;
+const load = async ({ hintergrund = false } = {}) => {
   if (state.busy) return;
-  setBusy(true); meldung('');
-  try { const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung; render(); }
-  catch (error) { meldung(error.message); }
+  setBusy(true);
+  if (!hintergrund) meldung('');
+  try {
+    const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung; render();
+    if (hintergrund && fehlgeschlageneAktualisierungen >= 3) meldung('');
+    fehlgeschlageneAktualisierungen = 0;
+  } catch (error) {
+    if (!hintergrund || !error.netzwerk || ++fehlgeschlageneAktualisierungen >= 3) meldung(error.message);
+  }
   finally { setBusy(false); }
 };
 
@@ -1025,5 +1039,5 @@ $('verlaufSchliessen').addEventListener('click', () => $('verlaufDialog').close(
 
 turnierFormZuruecksetzen();
 document.body.classList.toggle('beamer', state.beamer);
-setInterval(() => { if ((state.beamer || !darfBearbeiten()) && !document.hidden && !$('leitungDialog').open) void load(); }, 15000);
+setInterval(() => { if ((state.beamer || !darfBearbeiten()) && !document.hidden && !$('leitungDialog').open) void load({ hintergrund: true }); }, 15000);
 void load();
