@@ -117,7 +117,7 @@ Neue Schachturniere bieten standardmäßig Hin- und Rückspiel mit Farbenwechsel
 | 11 | 11 | 55 | 110 |
 | 12 | 11 | 66 | 132 |
 
-Ergebnisse sind `1:0`, `½:½` oder `0:1`. Die Rangfolge richtet sich nach Punkten und danach nach dem direkten Vergleich innerhalb der punktgleichen Gruppe, sobald deren Begegnungen vollständig gespielt sind. Verbleibender Gleichstand ergibt geteilte Ränge. Die Kreuztabelle zeigt Ergebnisse, offene Partien und Farben aus Sicht jedes Spielers; Hin- und Rückspiel werden getrennt dargestellt.
+Ergebnisse sind `1:0`, `½:½` oder `0:1`. Die Rangfolge richtet sich nach Punkten und danach nach dem direkten Vergleich innerhalb der punktgleichen Gruppe, wobei bereits die bisher gespielten Begegnungen zählen, und anschließend nach der geringeren Zahl gespielter Partien. Verbleibender Gleichstand ergibt geteilte Ränge. Die Kreuztabelle zeigt Ergebnisse, offene Partien und Farben aus Sicht jedes Spielers; Hin- und Rückspiel werden getrennt dargestellt.
 
 ### Schach: Anwesenheit und Tagesauslosung
 
@@ -126,7 +126,13 @@ Ergebnisse sind `1:0`, `½:½` oder `0:1`. Die Rangfolge richtet sich nach Punkt
 3. Ergebnisse direkt bei den ausgelosten Paarungen erfassen.
 4. **Spieltag beenden** wählen. Der Tag erscheint anschließend unter **Bisherige Spieltage**.
 
+Solange ein laufender Spieltag noch keine Ergebnisse enthält, entfernt **Auslosung zurücknehmen** ihn vollständig, etwa nach einer versehentlichen Auslosung.
+
 Die Auslosung verwendet offene Turnierpartien und teilt nur Anwesende ein. Bei ungerader Anwesenheit entsteht eine Dreiergruppe: Die zuerst genannte Person spielt nacheinander je eine Partie gegen die beiden anderen. Diese zentrale Rolle wechselt nach Möglichkeit.
+
+Bei Hin- und Rückspiel merkt sich die Auslosung, wer an früheren Spieltagen nur eine Partie hatte, also als Gegner in der Dreiergruppe oder in einem Paar mit nur noch einer offenen Partie. Diese Spieler bekommen nur dann wieder nur eine Partie, wenn sich die Anwesenden sonst nicht vollständig einteilen lassen. Wer bisher am häufigsten nur eine Partie hatte, wird zuerst berücksichtigt. Die händische Einteilung mit **Selbst einteilen** bleibt davon unberührt.
+
+Alternativ kann die Turnierleitung mit **Selbst einteilen** die Paarungen per Drag & Drop (oder Antippen) festlegen. Die Brettreihenfolge bleibt erhalten; der Server akzeptiert nur Paarungen mit offenen Turnierpartien und genau eine Dreiergruppe bei ungerader Anwesenheit.
 
 Ist für die ausgewählten Anwesenden keine vollständige Einteilung mit offenen Turnierpartien möglich, zeigt die Anwendung dies an.
 
@@ -145,7 +151,7 @@ http://localhost:8001/?turnier=4&beamer=1
 
 Mit `?turnier=4` lädt und zeigt die Anwendung ausschließlich dieses Turnier. Turnierauswahl, Neuanlage, Import und turnierübergreifender Sicherungsverlauf sind ausgeblendet. Anmeldung, Ergebniserfassung, Tagesauslosung, Export und Beameransicht bleiben entsprechend den Berechtigungen verfügbar. Ohne den Parameter erscheint die normale Turnierauswahl.
 
-Sichtbare Zuschauer- und Beameransichten aktualisieren sich alle 15 Sekunden automatisch.
+Sichtbare Zuschauer- und Beameransichten aktualisieren sich alle 15 Sekunden automatisch. Ein vorab ausgeloster Schachspieltag erscheint dort erst ab seinem Datum; die Turnierleitung sieht ihn sofort.
 
 ## Datenhaltung und Sicherungen
 
@@ -193,7 +199,7 @@ Turnierverwaltung/
 │   └── router.php                # Router für den lokalen PHP-Webserver
 ├── data/                         # Laufzeitdaten; wird automatisch angelegt
 ├── .htaccess                     # Apache: leitet auf client/ bzw. server/api.php um, sperrt data/ und server/
-├── deploy.ps1                    # Deployment über SSH/SCP
+├── deploy.ps1                    # Deployment über eine SSH-Verbindung
 ├── package.json                  # Befehle für Start, Syntaxprüfung und Tests
 ├── docs/                         # Kurzanleitungen für Turnierleitung und Gesamtverwaltung
 ├── scripts/                      # CLI für die bestehende Schachsaison
@@ -260,9 +266,9 @@ Für die Übertragung müssen SSH-Zugang und die lokale `data/leitung.json` vorh
 .\deploy.ps1
 ```
 
-Das Skript spiegelt die lokale Struktur: Es lädt zuerst `server/` und `client/`, danach die `.htaccess` hoch und entfernt anschließend Dateien der früheren, flachen Struktur. Vorhandene Turniere, Sicherungen und PIN-Konfigurationen auf dem Server bleiben erhalten. Nur wenn dort noch keine `data/leitung.json` existiert, wird die lokale PIN-Konfiguration übernommen. Lokale Turnierdaten werden nicht automatisch übertragen; dafür Export und Import verwenden.
+Das Skript überträgt alle Dateien als ein Paket in einer einzigen SSH-Verbindung, sodass das Passwort nur einmal abgefragt wird (Strato nimmt keine Anmeldung per SSH-Schlüssel an). Auf dem Server spiegelt es die lokale Struktur: Es legt zuerst `server/` und `client/`, danach die `.htaccess` ab und entfernt anschließend Dateien der früheren, flachen Struktur. Vorhandene Turniere, Sicherungen und PIN-Konfigurationen auf dem Server bleiben erhalten. Nur wenn dort noch keine `data/leitung.json` existiert, wird die lokale PIN-Konfiguration übernommen. Lokale Turnierdaten werden nicht automatisch übertragen; dafür Export und Import verwenden.
 
-`server/router.php`, Tests und Saison-Skripte werden nicht hochgeladen. Apache verwendet die `.htaccess`. Ein anderes Ziel lässt sich mit den Parametern `-Server`, `-User`, `-Port`, `-Webroot` und `-AppPath` angeben.
+`server/router.php`, Tests und Saison-Skripte werden nicht hochgeladen. Apache verwendet die `.htaccess`. Ein anderes Ziel lässt sich mit den Parametern `-Server`, `-User`, `-Port`, `-Webroot` und `-AppPath` angeben. Mit `-SkriptNach <Datei>` schreibt das Skript das Server-Skript samt Paket nur in eine Datei, ohne Verbindung aufzubauen.
 
 ## Bildquelle
 

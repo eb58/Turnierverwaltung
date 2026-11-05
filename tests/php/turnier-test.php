@@ -275,13 +275,50 @@ test('Auslosung teilt für 2 bis 32 Anwesende alle ein und bildet genau eine Dre
     }
 });
 
-test('Dreierzentrum wechselt bei gleicher Verfügbarkeit zwischen den Spielern', function (): void {
-    $turnier = neuesTurnier(['durchgaenge' => 2] + schachPayload(5), 1); $zentren = [];
-    for ($i = 0; $i < 5; $i++) {
-        $turnier = schachAuslosen($turnier, ['anwesend' => range(1, 5), 'datum' => '2026-10-23']);
-        $zentren[] = $turnier['spieltage'][$i]['zentrum']; $turnier = schachSpieltagBeenden($turnier);
+test('Spieltage mit nur einer Partie verteilen sich gleichmäßig auf alle Spieler', function (): void {
+    foreach ([5, 7, 9] as $n) for ($wiederholung = 0; $wiederholung < 20; $wiederholung++) {
+        $turnier = neuesTurnier(['durchgaenge' => 2] + schachPayload($n), 1);
+        for ($i = 0; $i < $n; $i++) {
+            $turnier = schachSpieltagBeenden(schachAuslosen($turnier, ['anwesend' => range(1, $n), 'datum' => '2026-10-23']));
+            $zaehler = schachEinzeltage($turnier, $turnier['spieltage'], range(1, $n));
+            wahr(max($zaehler) - min($zaehler) <= 1, "Ungleiche Verteilung bei $n Spielern nach Spieltag " . ($i + 1));
+        }
     }
-    gleich(5, count(array_unique($zentren)));
+});
+
+test('Wer schon nur eine Partie hatte, spielt nicht wieder in der Dreiergruppe, solange es anders geht', function (): void {
+    for ($wiederholung = 0; $wiederholung < 30; $wiederholung++) {
+        $turnier = neuesTurnier(['durchgaenge' => 2] + schachPayload(7), 1);
+        $turnier = schachAuslosen($turnier, ['anwesend' => range(1, 7), 'datum' => '2026-10-21']);
+        $dreier = array_values(array_filter($turnier['spieltage'][0]['gruppen'], fn(array $g): bool => $g['typ'] === 'dreier'))[0];
+        $einzeln = array_slice($dreier['spieler'], 1);
+        $turnier = schachSpieltagBeenden($turnier);
+        $turnier = schachAuslosen($turnier, ['anwesend' => range(1, 7), 'datum' => '2026-10-28']);
+        $dreier = array_values(array_filter($turnier['spieltage'][1]['gruppen'], fn(array $g): bool => $g['typ'] === 'dreier'))[0];
+        gleich([], array_intersect($einzeln, array_slice($dreier['spieler'], 1)), 'Spieler erneut mit nur einer Partie.');
+    }
+});
+
+test('Ein Paar mit nur noch einer offenen Partie trifft möglichst niemanden, der schon nur eine Partie hatte', function (): void {
+    $turnier = neuesTurnier(['durchgaenge' => 2] + schachPayload(4), 1);
+    $spiele = array_merge(...$turnier['runden']);
+    // Zwischen 1 und 2 ist nur noch das Rückspiel offen.
+    foreach ($turnier['runden'] as $r => $runde) foreach ($runde as $s => $spiel) {
+        if (schachPaarSchluessel($spiel['a'], $spiel['b']) === '1-2' && $spiel === array_values(array_filter($spiele, fn($x) => schachPaarSchluessel($x['a'], $x['b']) === '1-2'))[0]) {
+            $turnier['runden'][$r][$s] = ['status' => 'fertig', 'punkteA' => 1, 'punkteB' => 0, 'sieger' => $spiel['a']] + $spiel;
+        }
+    }
+    // Spieler 1 hatte schon einmal nur eine Partie.
+    $turnier['spieltage'] = [['id' => 'alt', 'datum' => '2026-10-14', 'status' => 'beendet', 'anwesend' => [1, 2, 3], 'zentrum' => 3,
+        'gruppen' => [['typ' => 'dreier', 'spieler' => [3, 1, 2], 'spiele' => [], 'freiePaarungen' => []]], 'freiePartien' => false]];
+    gleich([1 => 1, 2 => 1, 3 => 0, 4 => 0], schachEinzeltage($turnier, $turnier['spieltage'], [1, 2, 3, 4]));
+    for ($wiederholung = 0; $wiederholung < 30; $wiederholung++) {
+        $neu = schachAuslosen($turnier, ['anwesend' => [1, 2, 3, 4], 'datum' => '2026-10-21']);
+        foreach ($neu['spieltage'][1]['gruppen'] as $gruppe) gleich(2, count($gruppe['spiele']), 'Paar 1–2 hätte nur eine Partie.');
+    }
+    // Geht es nicht anders, wird trotzdem ausgelost.
+    $neu = schachAuslosen($turnier, ['anwesend' => [1, 2], 'datum' => '2026-10-21']);
+    gleich(1, count($neu['spieltage'][1]['gruppen'][0]['spiele']));
 });
 
 test('Abgeschlossene Begegnungen bleiben unverändert und freie Partien benötigen eine ausdrückliche Auswahl', function (): void {

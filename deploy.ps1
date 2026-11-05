@@ -4,7 +4,9 @@ param(
     [int] $Port = 22,
     [string] $Webroot = "Seniorenclub",
     [string] $AppPath = "turnierverwaltung",
-    [switch] $WhatIfOnly
+    [switch] $WhatIfOnly,
+    # Schreibt das Deploy-Skript nur in diese Datei, ohne Verbindung zum Server (zur Fehlersuche).
+    [string] $SkriptNach
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,23 +16,15 @@ $clientFiles = @("client/index.html", "client/app.js", "client/turnier-domain.js
 $assetFiles = @("client/assets/tischtennis.svg", "client/assets/schach.svg", "client/assets/reinickendorf-wappen.svg")
 # Dateien der frueheren, flachen Struktur und der verworfenen Offline-Funktion werden nach dem Upload entfernt.
 $legacyFiles = @("api.php", "schach.php", "schach-auslosung.php", "speicher.php", "leitung.php", "pin-einrichten.php", "app.js", "turnier-domain.js", "schach-domain.js", "schach-spieltag.js", "index.html", "reinickendorf-wappen.svg", "styles.css", "assets/tischtennis.svg", "assets/schach.svg", "client/offline.js", "client/sw.js", "client/manifest.json")
-$sshOpt = "-o UpdateHostKeys=no"
 $remoteApp = "${Webroot}/${AppPath}"
-function Get-UploadPaths([string[]] $files) {
-    $files | ForEach-Object {
-        $path = Join-Path $projectRoot $_
-        if (!(Test-Path -LiteralPath $path -PathType Leaf)) { throw "Datei fehlt: $path" }
-        $path
-    }
+$uploadFiles = @(".htaccess") + $serverFiles + $clientFiles + $assetFiles
+foreach ($file in $uploadFiles) {
+    if (!(Test-Path -LiteralPath (Join-Path $projectRoot $file) -PathType Leaf)) { throw "Datei fehlt: $file" }
 }
-$uploadServer = @(Get-UploadPaths $serverFiles)
-$uploadClient = @(Get-UploadPaths $clientFiles)
-$uploadAssets = @(Get-UploadPaths $assetFiles)
-$rootHtaccess = @(Get-UploadPaths @(".htaccess"))
 
 if ($WhatIfOnly) {
     Write-Host "Wuerde nach ${User}@${Server}:${remoteApp}/ hochladen:" -ForegroundColor Yellow
-    (@(".htaccess") + $serverFiles + $clientFiles + $assetFiles) | ForEach-Object { Write-Host "  $_" }
+    $uploadFiles | ForEach-Object { Write-Host "  $_" }
     Write-Host "Die lokale PIN-Konfiguration wird nur bei der Ersteinrichtung uebernommen. Vorhandene Daten und Sicherungen bleiben erhalten."
     exit 0
 }
@@ -38,38 +32,56 @@ if ($WhatIfOnly) {
 $localPinFile = Join-Path $projectRoot 'data/leitung.json'
 if (!(Test-Path -LiteralPath $localPinFile -PathType Leaf)) { throw 'Bitte zuerst die PIN der Gesamtverwaltung mit php server/pin-einrichten.php einrichten.' }
 
-Write-Host "Bereite Zielverzeichnis vor..." -ForegroundColor Cyan
-ssh -p $Port $sshOpt "${User}@${Server}" "mkdir -p '${remoteApp}/data' '${remoteApp}/server' '${remoteApp}/client/assets'"
-if ($LASTEXITCODE -ne 0) { throw "Remote-Verzeichnis konnte nicht vorbereitet werden." }
+# Strato nimmt keine Anmeldung per SSH-Schluessel an. Damit das Passwort nur einmal abgefragt wird,
+# geht alles in einer einzigen Verbindung: Die Dateien reisen als Base64-Paket im Shell-Skript mit,
+# der Server entpackt sie in ein temporaeres Verzeichnis und kopiert sie an ihren Platz.
+$temp = Join-Path ([IO.Path]::GetTempPath()) ("turnierverwaltung-deploy-" + [guid]::NewGuid())
+New-Item -ItemType Directory -Path $temp | Out-Null
+try {
+    Write-Host "Packe Dateien..." -ForegroundColor Cyan
+    $paket = Join-Path $temp 'paket.tar.gz'
+    & tar.exe --format ustar -czf $paket -C $projectRoot @uploadFiles 'data/leitung.json'
+    if ($LASTEXITCODE -ne 0) { throw 'Paket konnte nicht erstellt werden.' }
+    $base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($paket), [Base64FormattingOptions]::InsertLineBreaks)
 
-Write-Host "Lade Server und Client hoch..." -ForegroundColor Cyan
-scp -P $Port $sshOpt @uploadServer "${User}@${Server}:${remoteApp}/server/"
-if ($LASTEXITCODE -ne 0) { throw "Upload des Servers fehlgeschlagen." }
-scp -P $Port $sshOpt @uploadClient "${User}@${Server}:${remoteApp}/client/"
-if ($LASTEXITCODE -ne 0) { throw "Upload des Clients fehlgeschlagen." }
-scp -P $Port $sshOpt @uploadAssets "${User}@${Server}:${remoteApp}/client/assets/"
-if ($LASTEXITCODE -ne 0) { throw "Upload der SVG-Grafiken fehlgeschlagen." }
+    $legacyPaths = ($legacyFiles | ForEach-Object { "'$_'" }) -join ' '
+    $skript = @(
+        'set -e'
+        "app=`"`$HOME/${remoteApp}`""
+        'tmp=$(mktemp -d)'
+        'trap ''rm -rf "$tmp"'' EXIT'
+        'base64 -d > "$tmp/paket.tar.gz" <<''PAKET'''
+        ($base64 -replace "`r", '')
+        'PAKET'
+        'mkdir -p "$tmp/inhalt" "$app/data" "$app/server" "$app/client/assets"'
+        'tar -xzf "$tmp/paket.tar.gz" -C "$tmp/inhalt"'
+        'cd "$tmp/inhalt"'
+        'cp server/* "$app/server/"'
+        'for f in client/*; do if [ -f "$f" ]; then cp "$f" "$app/client/"; fi; done'
+        'cp client/assets/* "$app/client/assets/"'
+        '# Erst wenn client/ und server/ vollstaendig sind, leitet die .htaccess dorthin um. Sie sperrt data/ und server/.'
+        'cp .htaccess "$app/.htaccess"'
+        'cd "$app"'
+        "rm -f $legacyPaths"
+        'rmdir assets 2>/dev/null || true'
+        '# Die PIN der Gesamtverwaltung wird nur bei der Ersteinrichtung uebernommen.'
+        'if [ ! -f data/leitung.json ]; then cp "$tmp/inhalt/data/leitung.json" data/leitung.json; chmod 600 data/leitung.json; echo "PIN der Gesamtverwaltung eingerichtet."; fi'
+        'chmod 755 . server client client/assets'
+        'chmod 644 .htaccess'
+        'find server client -type f -exec chmod 644 {} \;'
+        'chmod 775 data'
+        'echo DEPLOY-OK'
+    ) -join "`n"
+    $skriptDatei = Join-Path $temp 'deploy.sh'
+    [IO.File]::WriteAllText($skriptDatei, $skript + "`n", (New-Object Text.UTF8Encoding $false))
+    if ($SkriptNach) { Copy-Item -LiteralPath $skriptDatei -Destination $SkriptNach; Write-Host "Skript geschrieben: $SkriptNach"; exit 0 }
 
-# Erst wenn client/ und server/ vollstaendig sind, leitet die .htaccess dorthin um.
-# Sie sperrt data/ und server/ weiterhin gegen direkten Zugriff.
-scp -P $Port $sshOpt @rootHtaccess "${User}@${Server}:${remoteApp}/.htaccess"
-if ($LASTEXITCODE -ne 0) { throw '.htaccess konnte nicht hochgeladen werden.' }
-
-$legacyPaths = ($legacyFiles | ForEach-Object { "'${remoteApp}/$_'" }) -join ' '
-ssh -p $Port $sshOpt "${User}@${Server}" "rm -f $legacyPaths && (rmdir '${remoteApp}/assets' 2>/dev/null || true)"
-if ($LASTEXITCODE -ne 0) { throw 'Alte Anwendungsdateien konnten nicht entfernt werden.' }
-
-Write-Host "Pruefe PIN der Gesamtverwaltung..." -ForegroundColor Cyan
-ssh -p $Port $sshOpt "${User}@${Server}" "test -f '${remoteApp}/data/leitung.json'"
-if ($LASTEXITCODE -eq 1) {
-    scp -P $Port $sshOpt $localPinFile "${User}@${Server}:${remoteApp}/data/leitung-initial.json"
-    if ($LASTEXITCODE -ne 0) { throw 'PIN-Konfiguration konnte nicht uebertragen werden.' }
-    ssh -p $Port $sshOpt "${User}@${Server}" "if [ ! -f '${remoteApp}/data/leitung.json' ]; then mv '${remoteApp}/data/leitung-initial.json' '${remoteApp}/data/leitung.json'; else rm -f '${remoteApp}/data/leitung-initial.json'; fi; chmod 600 '${remoteApp}/data/leitung.json'"
-    if ($LASTEXITCODE -ne 0) { throw 'PIN der Gesamtverwaltung konnte nicht eingerichtet werden.' }
-} elseif ($LASTEXITCODE -ne 0) { throw 'PIN-Konfiguration auf dem Server konnte nicht geprueft werden.' }
-
-Write-Host "Setze Dateirechte..." -ForegroundColor Cyan
-ssh -p $Port $sshOpt "${User}@${Server}" "chmod 755 '${remoteApp}' '${remoteApp}/server' '${remoteApp}/client' '${remoteApp}/client/assets' && chmod 644 '${remoteApp}/.htaccess' && find '${remoteApp}/server' '${remoteApp}/client' -type f -exec chmod 644 {} \; && chmod 775 '${remoteApp}/data'"
-if ($LASTEXITCODE -ne 0) { throw "Dateirechte konnten nicht gesetzt werden." }
+    Write-Host "Lade hoch nach ${User}@${Server}:${remoteApp}/ (Passwort wird einmal abgefragt)..." -ForegroundColor Cyan
+    $ssh = Start-Process -FilePath ssh -ArgumentList @('-p', $Port, '-o', 'UpdateHostKeys=no', "${User}@${Server}", 'sh -s') `
+        -RedirectStandardInput $skriptDatei -NoNewWindow -Wait -PassThru
+    if ($ssh.ExitCode -ne 0) { throw "Deploy fehlgeschlagen (ssh-Exitcode $($ssh.ExitCode))." }
+} finally {
+    Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 Write-Host "Fertig! https://senioren-luebars.berlin/${AppPath}/" -ForegroundColor Green

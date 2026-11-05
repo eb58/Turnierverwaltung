@@ -46,10 +46,14 @@ test('Direkter Vergleich entscheidet bei gleichen Punkten ohne Vorrang der Siegz
   assert.deepEqual(tabelle.map(zeile => [zeile.id, zeile.rang]), [[2, 1], [1, 2], [3, 3], [4, 4]]);
 });
 
-test('Unvollständiger direkter Vergleich einer punktgleichen Gruppe ergibt gleiche Ränge', () => {
+test('Unvollständiger direkter Vergleich zählt sofort, danach weniger Partien', () => {
   const tabelle = turnierTabelle(turnier([[spiel(1, 2, 1, 0), spiel(2, 4, 1, 0), spiel(3, 4, 1, 0)]]));
-  assert.deepEqual(tabelle.slice(0, 3).map(zeile => zeile.rang), [1, 1, 1]);
-  assert.equal(tabelle[3].rang, 4);
+  assert.deepEqual(tabelle.map(zeile => [zeile.id, zeile.rang]), [[1, 1], [3, 2], [2, 3], [4, 4]]);
+});
+
+test('Ohne Unterschied in Punkten, direktem Vergleich und Partienzahl bleibt der Rang geteilt', () => {
+  const tabelle = turnierTabelle(turnier([[spiel(1, 3, 1, 0), spiel(2, 4, 1, 0)]]));
+  assert.deepEqual(tabelle.map(zeile => [zeile.id, zeile.rang]), [[1, 1], [2, 1], [3, 3], [4, 3]]);
 });
 
 test('Remis sind abgeschlossene Partien und können zu geteilten Urkundenplätzen führen', () => {
@@ -84,9 +88,10 @@ test('Kreuztabelle und direkter Vergleich berücksichtigen beide Durchgänge', (
   const matrix = schachKreuztabelle(schach);
   assert.deepEqual(matrix[0].felder[1].partien, [{ runde: 1, farbe: 'Weiß', punkte: 1 }, { runde: 2, farbe: 'Schwarz', punkte: null }]);
   const tabelle = turnierTabelle(schach);
-  assert.equal(tabelle.find(zeile => zeile.id === 1).direkt, 0);
+  // Nur das Hinspiel ist gespielt: Es zählt trotzdem schon für den direkten Vergleich.
+  assert.equal(tabelle.find(zeile => zeile.id === 1).direkt, 1);
   assert.equal(tabelle.find(zeile => zeile.id === 2).direkt, 0);
-  assert.equal(tabelle[0].rang, tabelle[1].rang);
+  assert.deepEqual(tabelle.slice(0, 2).map(zeile => [zeile.id, zeile.rang]), [[1, 1], [2, 2]]);
 });
 
 test('Offene Partien beendeter Spieltage sind nur nachtragbar, solange sie nicht neu ausgelost wurden', () => {

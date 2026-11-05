@@ -428,13 +428,21 @@ test('API speichert Anwesenheit, Dreiergruppe und Spieltagsabschluss versionssic
   assert.equal(tag.gruppen.filter(gruppe => gruppe.typ === 'dreier').length, 1);
   assert.deepEqual(tag.gruppen.flatMap(gruppe => gruppe.spieler).sort((a, b) => a - b), auswahl.anwesend);
   assert.equal((await anfrage(`auslosen&turnier=${turnier.id}`, 'POST', { ...auswahl, version: 1 })).status, 409);
+  // Eine Auslosung ohne Ergebnisse lässt sich vollständig zurücknehmen und danach neu auslosen.
+  assert.equal((await anfrage(`auslosung-zuruecknehmen&turnier=${turnier.id}`, 'POST', { version: turnier.version }, gast)).status, 401);
+  const zurueck = await anfrage(`auslosung-zuruecknehmen&turnier=${turnier.id}`, 'POST', { version: turnier.version });
+  assert.equal(zurueck.status, 200); turnier = zurueck.payload.turnier;
+  assert.deepEqual(turnier.spieltage, []);
+  assert.equal((await anfrage(`auslosung-zuruecknehmen&turnier=${turnier.id}`, 'POST', { version: turnier.version })).status, 400);
+  turnier = (await anfrage(`auslosen&turnier=${turnier.id}`, 'POST', { ...auswahl, version: turnier.version })).payload.turnier;
   assert.equal((await anfrage(`turnier&turnier=${turnier.id}`, 'PUT', { ...turnier, durchgaenge: 1 })).status, 400);
   assert.equal((await anfrage(`teilnehmer&turnier=${turnier.id}`, 'PUT', { version: turnier.version, teilnehmer: turnier.teilnehmer.slice(0, 10) })).status, 400);
   const publicStand = (await (await fetch(`${basisUrl}/api.php?turnier=${turnier.id}`, { headers: { Cookie: gast.cookie } })).json()).turniere[0];
   assert.deepEqual(publicStand.spieltage, turnier.spieltage);
-  const spielId = tag.gruppen[0].spiele[0];
+  const spielId = turnier.spieltage[0].gruppen[0].spiele[0];
   turnier = (await anfrage(`ergebnis&turnier=${turnier.id}&spiel=${spielId}`, 'PUT', { version: turnier.version, punkteA: 0.5, punkteB: 0.5 })).payload.turnier;
   assert.equal((await anfrage(`auslosen&turnier=${turnier.id}`, 'POST', { ...auswahl, version: turnier.version })).status, 400);
+  assert.equal((await anfrage(`auslosung-zuruecknehmen&turnier=${turnier.id}`, 'POST', { version: turnier.version })).status, 400);
   const beendet = await anfrage(`spieltag-beenden&turnier=${turnier.id}`, 'POST', { version: turnier.version });
   assert.equal(beendet.status, 200); turnier = beendet.payload.turnier;
   assert.equal(turnier.spieltage[0].status, 'beendet');
@@ -525,7 +533,7 @@ const schachTurnier = async (titel, extra = {}) => {
   };
   return {
     stand: () => stand,
-    auslosen: (datum, anwesend) => schritt('auslosen', 'POST', { datum, anwesend, freiePartien: false }),
+    auslosen: (datum, anwesend, paarungen) => schritt('auslosen', 'POST', { datum, anwesend, freiePartien: false, paarungen }),
     ergebnis: (id, punkteA, punkteB) => schritt(`ergebnis&spiel=${encodeURIComponent(id)}`, 'PUT', { punkteA, punkteB }),
     beenden: () => schritt('spieltag-beenden', 'POST', {}),
   };
@@ -592,4 +600,33 @@ test('Neu auslosen ist erst wieder möglich, wenn alle Ergebnisse des laufenden 
   assert.equal(t.stand().spieltage.length, 1);
   assert.equal(t.stand().spieltage[0].datum, '2026-11-02');
   assert.equal(t.stand().runden.flat().filter(spiel => spiel.status === 'fertig').length, 0);
+});
+
+test('Turnierleitung kann die Paarungen eines Spieltags selbst festlegen', async () => {
+  const t = await schachTurnier('Händische Paarungen', { durchgaenge: 2 });
+  const [g, b, c, d] = t.stand().teilnehmer.map(person => person.id);
+  for (const paarungen of [[[g, b]], [[g, b], [c, c]], [[g, b, c], [d]], [[g, b], [c, 99]]]) {
+    assert.equal((await t.auslosen('2026-11-01', [g, b, c, d], paarungen)).status, 400);
+  }
+  let antwort = await t.auslosen('2026-11-01', [g, b, c, d], [[c, g], [d, b]]);
+  assert.equal(antwort.status, 200, antwort.payload.error);
+  let tag = antwort.payload.turnier.spieltage[0];
+  assert.deepEqual(tag.gruppen.map(gruppe => gruppe.spieler), [[c, g], [d, b]]);
+  // Bei Hin- und Rückspiel gehören beide offenen Partien zum Paar.
+  assert.ok(tag.gruppen.every(gruppe => gruppe.spiele.length === 2));
+  antwort = await t.auslosen('2026-11-01', [g, b, c], [[g, b, c]]);
+  assert.equal(antwort.status, 200, antwort.payload.error);
+  const stand = t.stand(); tag = stand.spieltage[0];
+  assert.equal(stand.spieltage.length, 1);
+  assert.deepEqual([tag.zentrum, tag.gruppen[0].typ, tag.gruppen[0].spiele.length], [g, 'dreier', 2]);
+  const partien = new Map(stand.runden.flat().map(spiel => [spiel.id, spiel]));
+  assert.deepEqual(tag.gruppen[0].spiele.map(id => [partien.get(id).a, partien.get(id).b].includes(g)), [true, true]);
+  const t2 = await schachTurnier('Händische Paarungen gespielt');
+  const [x, y] = t2.stand().teilnehmer.map(person => person.id);
+  assert.equal((await t2.auslosen('2026-11-01', [x, y])).status, 200);
+  assert.equal((await t2.ergebnis(t2.stand().spieltage[0].gruppen[0].spiele[0], 1, 0)).status, 200);
+  assert.equal((await t2.beenden()).status, 200);
+  const gespielt = await t2.auslosen('2026-11-08', [x, y], [[x, y]]);
+  assert.equal(gespielt.status, 400);
+  assert.match(gespielt.payload.error, /keine offene Partie mehr/);
 });

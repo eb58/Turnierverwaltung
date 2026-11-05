@@ -1,6 +1,6 @@
-import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=7';
-import { istSchach, schachErgebnisText, schachPunkte, schachKreuztabelle } from './schach-domain.js?v=6';
-import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=17';
+import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from './turnier-domain.js?v=8';
+import { istSchach, schachErgebnisText, schachPunkte, schachKreuztabelle } from './schach-domain.js?v=7';
+import { renderSchachSpieltag, renderSchachHistorie } from './schach-spieltag.js?v=21';
 
 const $ = id => document.getElementById(id);
 const el = (tag, text, className = '') => {
@@ -293,7 +293,7 @@ const aktualisiereFantasiePaarSichtbarkeit = () => {
 const renderTabelle = turnier => {
   const schach = istSchach(turnier);
   const wrap = el('div', undefined, 'table-wrap'), table = el('table', undefined, 'rangtabelle');
-  table.append(el('caption', schach ? 'Rangfolge: Punkte, direkter Vergleich innerhalb der punktgleichen Gruppe (sobald vollständig gespielt), sonst gleicher Rang.' : 'Rangfolge: Siege, Satzdifferenz, direkter Vergleich.'));
+  table.append(el('caption', schach ? 'Rangfolge: Punkte, direkter Vergleich innerhalb der punktgleichen Gruppe (bisher gespielte Partien), weniger Partien, sonst gleicher Rang.' : 'Rangfolge: Siege, Satzdifferenz, direkter Vergleich.'));
   const thead = el('thead'), header = el('tr');
   // Die Hauptkriterium-Spalte wird hervorgehoben (Schach: Punkte nach dem Namen, sonst die letzte Spalte).
   const spalten = schach ? ['Rang', 'Spieler', 'Punkte', 'Partien', 'Siege', 'Remis', 'Niederlagen'] : ['Rang', 'Doppelpaar', 'Spiele', 'Siege', 'Niederlagen', 'Sätze', 'Differenz'];

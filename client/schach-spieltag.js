@@ -1,4 +1,4 @@
-import { schachErgebnisText, schachLetzterSpieltag, schachNachtragbar, schachPunkte } from './schach-domain.js?v=6';
+import { schachErgebnisText, schachLetzterSpieltag, schachNachtragbar, schachPunkte } from './schach-domain.js?v=7';
 
 const historieOffen = new Map();
 const historieBearbeiten = new Map();
@@ -69,6 +69,17 @@ export const renderSchachHistorie = (turnier, { el, bearbeiten, ergebnisForm, ne
 };
 
 const auslosungOffen = new Map();
+const einteilungen = new Map();
+const paarSchluessel = (a, b) => `${Math.min(a, b)}-${Math.max(a, b)}`;
+
+// Bretter passend zur Anwesenheit: Paare und bei ungerader Anzahl eine Dreiergruppe am Ende.
+const einteilungAnpassen = (gruppen, anwesend) => {
+  const da = new Set(anwesend), anzahl = Math.floor(anwesend.length / 2);
+  return Array.from({ length: anzahl }, (_, g) => Array.from({ length: anwesend.length % 2 && g === anzahl - 1 ? 3 : 2 }, (_, p) => {
+    const id = gruppen[g]?.[p];
+    return id != null && da.has(id) ? id : null;
+  }));
+};
 
 export const renderSchachSpieltag = (turnier, hilfe) => {
   const { el, bearbeiten, busy, setBusy, request, aktualisieren, meldung, bestaetigen, ergebnisForm, paarungsText, abgeschlossen, sieger } = hilfe;
@@ -80,8 +91,10 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
     if (sieger.length) section.append(el('p', `${sieger.length > 1 ? 'Turniersieger (geteilt)' : 'Turniersieger'}: ${sieger.map(person => person.name).join(', ')}`, 'erfolg'));
     return section;
   }
-  // Ohne laufenden Spieltag gibt es für Zuschauer nichts anzuzeigen.
-  if (!bearbeiten && !aktiv) return null;
+  const jetzt = new Date();
+  const heute = `${jetzt.getFullYear()}-${String(jetzt.getMonth() + 1).padStart(2, '0')}-${String(jetzt.getDate()).padStart(2, '0')}`;
+  // Ohne laufenden Spieltag gibt es für Zuschauer nichts anzuzeigen; ein vorab ausgeloster Spieltag erscheint erst an seinem Datum.
+  if (!bearbeiten && (!aktiv || letzter.datum > heute)) return null;
   section.setAttribute('aria-label', 'Anwesenheit und Auslosung');
   section.append(el('h3', aktiv ? 'Aktueller Spieltag' : 'Neuer Spieltag'));
   const namen = new Map(turnier.teilnehmer.map(person => [person.id, person.name]));
@@ -90,8 +103,6 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
   if (bearbeiten && begonnen) section.append(el('p', 'Für diesen Spieltag wurden bereits Ergebnisse erfasst. Neu auslosen ist nicht mehr möglich; für eine neue Auslosung zuerst den Spieltag beenden.', 'hint management-only'));
   if (bearbeiten && !begonnen) {
     const form = el('form', undefined, 'auslosung-form management-only');
-    const jetzt = new Date();
-    const heute = `${jetzt.getFullYear()}-${String(jetzt.getMonth() + 1).padStart(2, '0')}-${String(jetzt.getDate()).padStart(2, '0')}`;
     // Ein vergessener Spieltag aus der Vergangenheit soll nicht unbemerkt sein altes Datum weitergeben.
     const veraltet = aktiv && letzter.datum < heute;
     if (veraltet) section.append(el('p', `Der Spieltag vom ${datumText(letzter.datum)} wurde nicht beendet. Für die neue Auslosung ist das heutige Datum eingetragen.`, 'hint management-only'));
@@ -106,6 +117,98 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
       input.checked = aktiv && letzter.anwesend.includes(person.id);
       label.append(input, el('span', person.name)); auswahl.append(label); checkboxen.push(input);
     }
+    // Die händische Einteilung übersteht ein Neuzeichnen und startet mit der aktuellen Einteilung des Spieltags.
+    const zustand = einteilungen.get(turnier.id) ?? { manuell: false, gruppen: null };
+    einteilungen.set(turnier.id, zustand);
+    zustand.gruppen ??= aktiv ? [...letzter.gruppen].sort((a, b) => a.spieler.length - b.spieler.length).map(gruppe => [...gruppe.spieler]) : [];
+    const offenePaare = new Map();
+    for (const spiel of turnier.runden.flat()) if (spiel.status === 'offen') {
+      const key = paarSchluessel(spiel.a, spiel.b); offenePaare.set(key, (offenePaare.get(key) ?? 0) + 1);
+    }
+    const modus = el('fieldset', undefined, 'einteilung-modus'); modus.append(el('legend', 'Paarungen'));
+    for (const [wert, text] of [[false, 'Automatisch auslosen'], [true, 'Selbst einteilen']]) {
+      const label = el('label', undefined, 'checkbox-label'), input = el('input');
+      input.type = 'radio'; input.name = 'einteilung'; input.checked = zustand.manuell === wert;
+      input.addEventListener('change', () => { zustand.manuell = wert; zaehlen(); });
+      label.append(input, el('span', text)); modus.append(label);
+    }
+    const brett = el('div', undefined, 'einteilung');
+    let gewaehlt = null, gueltig = false;
+    const anwesendIds = () => checkboxen.filter(input => input.checked).map(input => Number(input.value));
+    const position = id => { for (const [g, gruppe] of zustand.gruppen.entries()) { const p = gruppe.indexOf(id); if (p >= 0) return [g, p]; } return null; };
+    // Ein besetzter Platz tauscht mit der Herkunft des Spielers; ohne Ziel kommt der Spieler zurück zu den Uneingeteilten.
+    const platzieren = (id, ziel) => {
+      const von = position(id), verdraengt = ziel ? zustand.gruppen[ziel[0]][ziel[1]] : null;
+      if (von) zustand.gruppen[von[0]][von[1]] = verdraengt;
+      if (ziel) zustand.gruppen[ziel[0]][ziel[1]] = id;
+      gewaehlt = null; zaehlen();
+    };
+    const ablage = (element, ziel) => {
+      element.addEventListener('dragover', event => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; element.classList.add('ziel'); });
+      element.addEventListener('dragleave', event => { if (!element.contains(event.relatedTarget)) element.classList.remove('ziel'); });
+      element.addEventListener('drop', event => {
+        event.preventDefault(); element.classList.remove('ziel');
+        const id = Number(event.dataTransfer.getData('text/plain'));
+        if (anwesendIds().includes(id)) platzieren(id, ziel);
+      });
+      // Antippen als Alternative für Touchgeräte und Tastatur: erst Spieler, dann Platz wählen.
+      element.addEventListener('click', () => { if (gewaehlt !== null) platzieren(gewaehlt, ziel); });
+    };
+    const chip = id => {
+      // Kein <button>, weil Firefox Buttons nicht ziehen lässt.
+      const button = el('span', namen.get(id), 'einteilung-chip'); button.draggable = true; button.tabIndex = 0;
+      button.setAttribute('role', 'button'); button.setAttribute('aria-pressed', String(gewaehlt === id));
+      button.classList.toggle('gewaehlt', gewaehlt === id);
+      button.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); button.click(); } });
+      button.addEventListener('dragstart', event => { event.dataTransfer.setData('text/plain', String(id)); event.dataTransfer.effectAllowed = 'move'; });
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        if (gewaehlt !== null && gewaehlt !== id && position(id)) platzieren(gewaehlt, position(id));
+        else { gewaehlt = gewaehlt === id ? null : id; zaehlen(); }
+      });
+      return button;
+    };
+    const zeichnen = () => {
+      const anwesendJetzt = anwesendIds();
+      zustand.gruppen = einteilungAnpassen(zustand.gruppen, anwesendJetzt);
+      brett.hidden = !zustand.manuell; brett.replaceChildren(); gueltig = zustand.gruppen.length > 0;
+      const platziert = new Set(zustand.gruppen.flat()), frei = anwesendJetzt.filter(id => !platziert.has(id));
+      const pool = el('div', undefined, 'einteilung-pool'); ablage(pool, null);
+      pool.append(el('p', frei.length ? 'Noch nicht eingeteilt – auf ein Brett ziehen oder antippen und dann den Platz wählen:' : 'Alle Anwesenden sind eingeteilt.', 'hint'));
+      for (const id of frei) pool.append(chip(id));
+      const grid = el('div', undefined, 'einteilung-gruppen');
+      zustand.gruppen.forEach((gruppe, g) => {
+        const dreier = gruppe.length === 3, card = el('article', undefined, 'einteilung-gruppe');
+        card.append(el('h5', dreier ? `Dreiergruppe · Brett ${g + 1}` : `Brett ${g + 1}`));
+        const plaetze = el('div', undefined, 'einteilung-plaetze');
+        gruppe.forEach((id, p) => {
+          const platz = el('div', undefined, 'einteilung-platz'); ablage(platz, [g, p]);
+          if (dreier) platz.append(el('span', p === 0 ? 'spielt gegen beide' : `Gegner ${p}`, 'einteilung-rolle'));
+          if (id !== null) platz.append(chip(id));
+          else {
+            const leer = el('span', 'frei', 'einteilung-leer'); leer.tabIndex = 0; leer.setAttribute('role', 'button');
+            leer.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); leer.click(); } });
+            platz.append(leer);
+          }
+          plaetze.append(platz);
+        });
+        card.append(plaetze);
+        const paare = gruppe.slice(1).map(gegner => [gruppe[0], gegner]);
+        if (gruppe.includes(null)) { gueltig = false; card.append(el('p', 'Noch unvollständig', 'muted')); }
+        else {
+          const gespielt = paare.filter(([a, b]) => !offenePaare.has(paarSchluessel(a, b)));
+          if (gespielt.length) { gueltig = false; card.append(el('p', `Keine offene Partie mehr: ${gespielt.map(([a, b]) => `${namen.get(a)} – ${namen.get(b)}`).join(', ')}`, 'fehler')); }
+          else {
+            const partien = dreier ? 2 : offenePaare.get(paarSchluessel(...paare[0]));
+            card.append(el('p', `${partien} ${partien === 1 ? 'offene Partie' : 'offene Partien'}`, 'erfolg'));
+          }
+        }
+        grid.append(card);
+      });
+      brett.append(pool, grid, el('p', zustand.gruppen.some(gruppe => gruppe.length === 3)
+        ? 'In der Dreiergruppe spielt die Person auf dem ersten Platz nacheinander je eine Partie gegen die beiden anderen. Weiß und Schwarz ergeben sich aus dem Spielplan.'
+        : 'Weiß und Schwarz ergeben sich aus dem Spielplan.', 'hint'));
+    };
     const anzahl = el('p', undefined, 'hint'), toolbar = el('div', undefined, 'toolbar');
     const alle = el('button', 'Alle auswählen', 'secondary small'), keine = el('button', 'Auswahl aufheben', 'secondary small');
     const los = el('button', aktiv ? 'Neu auslosen' : 'Paarungen auslosen'); los.type = 'submit';
@@ -113,22 +216,29 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
     const zaehlen = () => {
       const n = checkboxen.filter(input => input.checked).length;
       anzahl.textContent = `${n} Spieler anwesend${n >= 2 ? n % 2 ? ' · eine Dreiergruppe, übrige Spieler in Paaren' : ' · alle Spieler in Paaren' : ' · mindestens zwei auswählen'}`;
-      los.dataset.gesperrt = String(n < 2); los.disabled = busy() || n < 2;
+      zeichnen();
+      const gesperrt = n < 2 || (zustand.manuell && !gueltig);
+      los.textContent = zustand.manuell ? 'Paarungen übernehmen' : aktiv ? 'Neu auslosen' : 'Paarungen auslosen';
+      los.dataset.gesperrt = String(gesperrt); los.disabled = busy() || gesperrt;
     };
     checkboxen.forEach(input => input.addEventListener('change', zaehlen));
     alle.addEventListener('click', () => { checkboxen.forEach(input => input.checked = true); zaehlen(); });
     keine.addEventListener('click', () => { checkboxen.forEach(input => input.checked = false); zaehlen(); });
     toolbar.append(alle, keine, los);
-    form.append(datumLabel, auswahl, anzahl, el('p', 'Normale Paare spielen die noch offenen Partien gegeneinander. In der Dreiergruppe spielt die zuerst genannte Person nacheinander je eine Partie gegen die beiden anderen.', 'hint'), toolbar);
+    form.append(datumLabel, auswahl, anzahl, modus, brett, el('p', 'Normale Paare spielen die noch offenen Partien gegeneinander. In der Dreiergruppe spielt die zuerst genannte Person nacheinander je eine Partie gegen die beiden anderen.', 'hint'), toolbar);
     zaehlen();
     form.addEventListener('submit', async event => {
       event.preventDefault();
       if (busy()) return;
-      if (aktiv && !await bestaetigen({ titel: 'Neu auslosen?', text: 'Die bisherige Einteilung dieses Spieltags wird ersetzt.', bestaetigung: 'Neu auslosen' })) return;
+      const { manuell } = zustand;
+      if (aktiv && !await bestaetigen(manuell
+        ? { titel: 'Einteilung übernehmen?', text: 'Die bisherige Einteilung dieses Spieltags wird ersetzt.', bestaetigung: 'Übernehmen' }
+        : { titel: 'Neu auslosen?', text: 'Die bisherige Einteilung dieses Spieltags wird ersetzt.', bestaetigung: 'Neu auslosen' })) return;
       setBusy(true);
       try {
-        const result = await request(`auslosen&turnier=${turnier.id}`, { method: 'POST', body: JSON.stringify({ version: turnier.version, datum: datum.value, anwesend: checkboxen.filter(input => input.checked).map(input => Number(input.value)), freiePartien: false }) });
-        aktualisieren(result.turnier); meldung('Anwesende Spieler ausgelost.', 'erfolg');
+        const result = await request(`auslosen&turnier=${turnier.id}`, { method: 'POST', body: JSON.stringify({ version: turnier.version, datum: datum.value, anwesend: anwesendIds(), freiePartien: false, paarungen: manuell ? zustand.gruppen : undefined }) });
+        zustand.gruppen = null;
+        aktualisieren(result.turnier); meldung(manuell ? 'Paarungen übernommen.' : 'Anwesende Spieler ausgelost.', 'erfolg');
       } catch (error) { meldung(error.message); }
       finally { setBusy(false); }
     });
@@ -182,7 +292,20 @@ export const renderSchachSpieltag = (turnier, hilfe) => {
         catch (error) { meldung(error.message); }
         finally { setBusy(false); }
       });
-      section.append(ende);
+      const aktionen = el('div', undefined, 'toolbar management-only'); aktionen.append(ende);
+      section.append(aktionen);
+      if (!begonnen) {
+        // Eine versehentliche oder zu frühe Auslosung lässt sich ohne Spuren in den bisherigen Spieltagen entfernen.
+        const zurueck = el('button', 'Auslosung zurücknehmen', 'secondary management-only'); zurueck.type = 'button';
+        zurueck.addEventListener('click', async () => {
+          if (busy() || !await bestaetigen({ titel: 'Auslosung zurücknehmen?', text: `Der Spieltag vom ${datumText(letzter.datum)} wird mit allen Paarungen entfernt. Die Partien bleiben offen und können später neu ausgelost werden.`, bestaetigung: 'Zurücknehmen' })) return;
+          setBusy(true);
+          try { aktualisieren((await request(`auslosung-zuruecknehmen&turnier=${turnier.id}`, { method: 'POST', body: JSON.stringify({ version: turnier.version }) })).turnier); meldung('Auslosung zurückgenommen.', 'erfolg'); }
+          catch (error) { meldung(error.message); }
+          finally { setBusy(false); }
+        });
+        aktionen.append(zurueck);
+      }
     }
   }
   return section;

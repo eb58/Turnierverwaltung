@@ -67,6 +67,27 @@ function schachAuslosungBegonnen(array $turnier, array $tag): bool
     return false;
 }
 
+/**
+ * Zählt je anwesendem Spieler die bisherigen Spieltage, an denen nur eine Partie angesetzt war:
+ * als Gegner des Zentrums in der Dreiergruppe oder in einem Paar mit nur noch einer offenen Partie.
+ * Ohne Rückspiel ist eine Partie pro Spieltag der Normalfall und wird nicht gezählt.
+ */
+function schachEinzeltage(array $turnier, array $tage, array $anwesend): array
+{
+    $zaehler = array_fill_keys($anwesend, 0);
+    if (($turnier['durchgaenge'] ?? 1) < 2) return $zaehler;
+    foreach ($tage as $tag) foreach ($tag['gruppen'] ?? [] as $gruppe) {
+        $spieler = $gruppe['spieler'] ?? [];
+        if (($gruppe['typ'] ?? 'paar') === 'dreier') $einzeln = array_slice($spieler, 1);
+        else {
+            $partien = count($gruppe['spiele'] ?? []) + array_sum(array_column($gruppe['freiePaarungen'] ?? [], 'anzahl'));
+            $einzeln = $partien === 1 ? $spieler : [];
+        }
+        foreach ($einzeln as $id) if (isset($zaehler[$id])) $zaehler[$id]++;
+    }
+    return $zaehler;
+}
+
 function schachAuslosen(array $turnier, array $payload): array
 {
     if (!istSchach($turnier)) throw new ApiError('Die Anwesenheitsauslosung ist für Schachturniere verfügbar.');
@@ -92,26 +113,55 @@ function schachAuslosen(array $turnier, array $payload): array
         if ($spiel['status'] === 'offen') $offen[schachPaarSchluessel($spiel['a'], $spiel['b'])][] = $spiel;
     }
     if (!$offen) throw new ApiError('Das Turnier ist abgeschlossen. Alle Partien sind gespielt.');
+    if (($payload['paarungen'] ?? null) !== null) {
+        [$gruppen, $zentrum] = schachManuelleGruppen($turnier, $anwesend, $payload['paarungen'], $offen);
+        $tage[] = ['id' => bin2hex(random_bytes(12)), 'datum' => $datum, 'status' => 'aktiv', 'anwesend' => $anwesend,
+            'zentrum' => $zentrum, 'gruppen' => $gruppen, 'freiePartien' => false];
+        $turnier['spieltage'] = $tage;
+        return $turnier;
+    }
     $zentren = $anwesend; shuffle($zentren); $haeufigkeit = array_fill_keys($anwesend, 0);
     foreach ($tage as $tag) if ($tag['zentrum'] !== null && isset($haeufigkeit[$tag['zentrum']])) $haeufigkeit[$tag['zentrum']]++;
     usort($zentren, fn(int $a, int $b): int => $haeufigkeit[$a] <=> $haeufigkeit[$b]);
     if (count($anwesend) % 2 === 0) $zentren = [null];
-    $loesung = null;
-    foreach ([false, true] as $frei) {
-        if ($frei && !$freieErlaubt) break;
+    // Geschützte Spieler bekommen weder einen Platz neben dem Zentrum der Dreiergruppe noch ein Paar mit nur einer offenen Partie.
+    $versuchen = function (array $geschuetzt, bool $frei) use ($anwesend, $zentren, $offen): ?array {
         foreach ($zentren as $zentrum) {
             $knoten = $anwesend; shuffle($knoten);
             // Eine Kopie des Zentrums erlaubt genau zwei verschiedene Gegner.
             if ($zentrum !== null) $knoten[] = $zentrum;
             $graph = array_fill(0, count($knoten), []);
             foreach ($knoten as $i => $a) foreach ($knoten as $j => $b) {
-                if ($a !== $b && ($frei || isset($offen[schachPaarSchluessel($a, $b)]))) $graph[$i][] = $j;
+                if ($a === $b) continue;
+                $partien = count($offen[schachPaarSchluessel($a, $b)] ?? []);
+                if (!$frei && !$partien) continue;
+                if ($zentrum !== null && ($a === $zentrum || $b === $zentrum)) {
+                    if (isset($geschuetzt[$a === $zentrum ? $b : $a])) continue;
+                } elseif ($partien === 1 && (isset($geschuetzt[$a]) || isset($geschuetzt[$b]))) continue;
+                $graph[$i][] = $j;
             }
             foreach ($graph as &$nachbarn) shuffle($nachbarn); unset($nachbarn);
             $matching = schachMatching($graph);
-            if (in_array(-1, $matching, true)) continue;
-            $loesung = [$knoten, $matching, $zentrum]; break 2;
+            if (!in_array(-1, $matching, true)) return [$knoten, $matching, $zentrum];
         }
+        return null;
+    };
+    // Wer schon an mehr Spieltagen nur eine Partie hatte, wird zuerst geschützt; jeder weitere nur, solange
+    // die offenen Partien noch eine vollständige Einteilung zulassen. Nur eine Partie trifft so möglichst die anderen.
+    $einzeltage = schachEinzeltage($turnier, $tage, $anwesend);
+    $reihenfolge = $anwesend; shuffle($reihenfolge);
+    usort($reihenfolge, fn(int $a, int $b): int => $einzeltage[$b] <=> $einzeltage[$a]);
+    $loesung = null;
+    foreach ([false, true] as $frei) {
+        if ($frei && !$freieErlaubt) break;
+        $loesung = $versuchen([], $frei);
+        if ($loesung === null) continue;
+        $geschuetzt = [];
+        foreach ($reihenfolge as $id) {
+            $probe = $versuchen($geschuetzt + [$id => true], $frei);
+            if ($probe !== null) { $geschuetzt[$id] = true; $loesung = $probe; }
+        }
+        break;
     }
     if ($loesung === null) throw new ApiError('Für diese Anwesenheitsauswahl sind keine vollständigen Turnierpaarungen mehr möglich.');
     [$knoten, $matching, $zentrum] = $loesung;
@@ -139,11 +189,52 @@ function schachAuslosen(array $turnier, array $payload): array
     return $turnier;
 }
 
+// Von der Turnierleitung festgelegte Einteilung. Die Reihenfolge der Gruppen entspricht der Brettfolge.
+function schachManuelleGruppen(array $turnier, array $anwesend, mixed $paarungen, array $offen): array
+{
+    $fehler = fn(string $text = 'Die Paarungen passen nicht zur Anwesenheit.') => throw new ApiError($text);
+    if (!is_array($paarungen) || !array_is_list($paarungen)) $fehler();
+    $namen = array_column($turnier['teilnehmer'], 'name', 'id'); $istAnwesend = array_flip($anwesend);
+    $verteilt = []; $gruppen = []; $zentrum = null;
+    foreach ($paarungen as $ids) {
+        if (!is_array($ids) || !array_is_list($ids) || !in_array(count($ids), [2, 3], true)) $fehler();
+        foreach ($ids as $id) {
+            if (!is_int($id) || !isset($istAnwesend[$id]) || isset($verteilt[$id])) $fehler();
+            $verteilt[$id] = true;
+        }
+        $dreier = count($ids) === 3;
+        if ($dreier) { if ($zentrum !== null) $fehler(); $zentrum = $ids[0]; }
+        $spiele = [];
+        // In der Dreiergruppe spielt die erste Person je eine Partie gegen die beiden anderen.
+        foreach (array_slice($ids, 1) as $gegner) {
+            $partien = $offen[schachPaarSchluessel($ids[0], $gegner)] ?? [];
+            if (!$partien) $fehler("{$namen[$ids[0]]} und {$namen[$gegner]} haben keine offene Partie mehr.");
+            array_push($spiele, ...array_column($dreier ? [$partien[0]] : $partien, 'id'));
+        }
+        $gruppen[] = ['typ' => $dreier ? 'dreier' : 'paar', 'spieler' => $ids, 'spiele' => $spiele, 'freiePaarungen' => []];
+    }
+    if (count($verteilt) !== count($anwesend) || ($zentrum !== null) !== (count($anwesend) % 2 === 1)) {
+        $fehler('Bitte alle Anwesenden auf Paare verteilen, bei ungerader Anzahl mit genau einer Dreiergruppe.');
+    }
+    return [$gruppen, $zentrum];
+}
+
 function schachSpieltagBeenden(array $turnier): array
 {
     $tage = $turnier['spieltage'] ?? [];
     if (!istSchach($turnier) || !$tage || $tage[count($tage) - 1]['status'] !== 'aktiv') throw new ApiError('Es gibt keinen laufenden Spieltag.');
     $turnier['spieltage'][count($tage) - 1]['status'] = 'beendet';
+    return $turnier;
+}
+
+// Entfernt einen laufenden Spieltag ohne Ergebnisse vollständig, etwa nach einer versehentlichen Auslosung.
+function schachAuslosungZuruecknehmen(array $turnier): array
+{
+    $tage = $turnier['spieltage'] ?? [];
+    if (!istSchach($turnier) || !$tage || $tage[count($tage) - 1]['status'] !== 'aktiv') throw new ApiError('Es gibt keinen laufenden Spieltag.');
+    if (schachAuslosungBegonnen($turnier, $tage[count($tage) - 1])) throw new ApiError('Für diesen Spieltag wurden bereits Ergebnisse erfasst. Die Auslosung kann nicht mehr zurückgenommen werden.');
+    array_pop($tage);
+    $turnier['spieltage'] = $tage;
     return $turnier;
 }
 

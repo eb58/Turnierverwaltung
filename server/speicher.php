@@ -79,6 +79,7 @@ function aenderungsBeschreibung(?array $vorher, ?array $nachher, string $aktion)
         'tische' => 'Tisch- oder Brettanzahl geändert', 'spielwertung' => 'Spielwertung geändert',
         'erfassungsart' => 'Ergebniserfassung geändert', 'wartung' => 'Spielplan aktualisiert',
         'auslosen' => 'Anwesende Spieler ausgelost', 'spieltag-beenden' => 'Spieltag beendet',
+        'auslosung-zuruecknehmen' => 'Auslosung zurückgenommen',
         default => 'Turnierdaten geändert',
     };
 }

@@ -346,11 +346,15 @@ try {
         withStore(fn(array $turniere): int => turnierIndex($turniere, (int) $id));
         respond(['leitung' => turnierPinSetzen((int) $id, $payload['pin'] ?? null)]);
     }
-    if ($method === 'POST' && in_array($action, ['auslosen', 'spieltag-beenden'], true)) {
+    if ($method === 'POST' && in_array($action, ['auslosen', 'spieltag-beenden', 'auslosung-zuruecknehmen'], true)) {
         $payload = body(); $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT);
         respond(withStore(function (array &$turniere) use ($payload, $id, $action): array {
             $index = turnierIndex($turniere, (int) $id); pruefeVersion($turniere[$index], $payload);
-            $turniere[$index] = $action === 'auslosen' ? schachAuslosen($turniere[$index], $payload) : schachSpieltagBeenden($turniere[$index]);
+            $turniere[$index] = match ($action) {
+                'auslosen' => schachAuslosen($turniere[$index], $payload),
+                'spieltag-beenden' => schachSpieltagBeenden($turniere[$index]),
+                'auslosung-zuruecknehmen' => schachAuslosungZuruecknehmen($turniere[$index]),
+            };
             $turniere[$index]['version']++;
             return ['turnier' => $turniere[$index]];
         }, true));

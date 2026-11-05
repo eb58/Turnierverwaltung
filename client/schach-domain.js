@@ -73,14 +73,15 @@ export const schachTabelle = turnier => {
     const ids = new Set(gruppe.map(zeile => zeile.id));
     const direkte = fertige.filter(spiel => ids.has(spiel.a) && ids.has(spiel.b));
     const alte = (turnier.altErgebnisse ?? []).filter(e => ids.has(e.a) && ids.has(e.b));
-    if (direkte.length + alte.length * 2 !== gruppe.length * (gruppe.length - 1) / 2 * (turnier.durchgaenge ?? 1)) continue;
+    // Der direkte Vergleich zählt bereits mit den bisher gespielten Partien untereinander.
     for (const e of alte) { zeilen.get(e.a).direkt += e.punkteA; zeilen.get(e.b).direkt += e.punkteB; }
     for (const spiel of direkte) {
       zeilen.get(spiel.a).direkt += spiel.punkteA;
       zeilen.get(spiel.b).direkt += spiel.punkteB;
     }
   }
-  const wertung = (a, b) => b.punkte - a.punkte || b.direkt - a.direkt;
+  // Bei gleichen Punkten steht vorne, wer dafür weniger Partien gebraucht hat (Zwischenstand während der Saison).
+  const wertung = (a, b) => b.punkte - a.punkte || b.direkt - a.direkt || a.spiele - b.spiele;
   const sortiert = [...zeilen.values()].sort((a, b) => wertung(a, b) || a.name.localeCompare(b.name, 'de') || a.id - b.id);
   let rang = 0;
   return sortiert.map((zeile, index) => {
