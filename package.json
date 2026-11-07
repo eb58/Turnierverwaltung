@@ -10,5 +10,8 @@
     "test:unit": "node --test tests/unit/*.test.js",
     "test:php": "php tests/php/turnier-test.php",
     "test:api": "node --test tests/api/*.test.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.1"
   }
 }

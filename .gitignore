@@ -4,3 +4,4 @@ data/.turnier-*
 data/sicherungen/
 data/sitzungen/
 
+node_modules/
