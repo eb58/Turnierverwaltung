@@ -2,7 +2,7 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -22,6 +22,16 @@ const freierPort = () => new Promise((resolve, reject) => {
     server.close(error => error ? reject(error) : resolve(port));
   });
 });
+
+// Inhalt aller Turnierdateien (ohne Sperrdateien), um unveränderte Daten zu prüfen.
+const turnierDateien = async () => {
+  const wurzel = join(tempOrdner, 'turniere'), stand = {};
+  for (const eintrag of await readdir(wurzel, { recursive: true, withFileTypes: true })) {
+    const pfad = join(eintrag.parentPath ?? eintrag.path, eintrag.name);
+    if (eintrag.isFile() && !eintrag.name.startsWith('.')) stand[pfad] = await readFile(pfad, 'utf8');
+  }
+  return stand;
+};
 
 const anfrage = async (action = '', method = 'GET', body, sitzung = leitung, extraHeaders = {}) => {
   const response = await fetch(`${basisUrl}/api.php${action ? `?action=${action}` : ''}`, {
@@ -217,18 +227,18 @@ test('Zuschauer sehen ohne Turnier-Link keine Turniere und können weder schreib
   assert.equal(publicData.payload.leitung.angemeldet, false);
   assert.equal(publicData.payload.leitung.eingerichtet, true);
   assert.equal(publicData.payload.verlauf, undefined);
-  const vorher = await readFile(join(tempOrdner, 'turniere.json'), 'utf8');
+  const vorher = await turnierDateien();
   for (const [action, method] of [['anlegen', 'POST'], ['importieren', 'POST'], ['turnier', 'PUT'], ['ergebnis', 'PUT'], ['loeschen', 'DELETE'], ['wiederherstellen', 'POST'], ['teilnehmer', 'PUT'], ['tische', 'PUT'], ['spielwertung', 'PUT'], ['erfassungsart', 'PUT'], ['umbenennen', 'PUT'], ['pin', 'POST']]) {
     assert.equal((await anfrage(`${action}&turnier=1`, method, {}, gast)).status, 401, action);
   }
   assert.equal((await anfrage('verlauf', 'GET', undefined, gast)).status, 401);
   assert.equal((await anfrage('stand&sicherung=../../leitung.json&seite=vorher', 'GET', undefined, gast)).status, 401);
-  for (const pfad of ['/server/api.php', '/server/pin-einrichten.php', '/client/index.html', '/data/turniere.json', '/data/leitung.json', '/data/anmeldeversuche.json', '/DATA/leitung.json', '/%64ata/leitung.json', '/data/sitzungen/test', '/data/sicherungen/test.json']) {
+  for (const pfad of ['/server/api.php', '/server/pin-einrichten.php', '/client/index.html', '/data/turniere.json', '/data/turniere/1/turnier.json', '/data/leitung.json', '/data/anmeldeversuche.json', '/DATA/leitung.json', '/%64ata/leitung.json', '/data/sitzungen/test', '/data/sicherungen/test.json']) {
     assert.equal((await fetch(basisUrl + pfad)).status, 403, pfad);
   }
   assert.equal((await fetch(`${basisUrl}/pin-einrichten.php`)).status, 404);
   assert.equal((await fetch(`${basisUrl}/`)).status, 200);
-  assert.equal(await readFile(join(tempOrdner, 'turniere.json'), 'utf8'), vorher);
+  assert.deepEqual(await turnierDateien(), vorher);
   assert.equal((await anfrage('umbenennen&turnier=1', 'PUT', { version: 1, titel: 'Angriff' }, leitung, { 'X-CSRF-Token': 'falsch' })).status, 403);
   assert.equal((await anfrage('anmelden', 'POST', { pin: '000000' }, gast)).status, 401);
   assert.equal((await anfrage('anmelden', 'POST', { pin: testPin }, gast, { 'X-CSRF-Token': '' })).status, 403);
@@ -271,22 +281,28 @@ test('Sicherungen zeigen vorher/nachher, stellen gelöschte Turniere wieder her 
   assert.deepEqual(alle.find(item => item.id === neu.id), neu);
   const wiederLog = (await anfrage('verlauf')).payload.verlauf;
   assert.equal(wiederLog[0].aktion, 'wiederherstellen');
-  const dateien = await readdir(join(tempOrdner, 'sicherungen'));
-  assert.equal(dateien.length, wiederLog.length);
+  let sicherungen = 0;
+  for (const ordner of (await readdir(join(tempOrdner, 'turniere'))).filter(name => /^[0-9]+$/.test(name))) sicherungen += (await readdir(join(tempOrdner, 'turniere', ordner, 'sicherungen'))).length;
+  assert.equal(sicherungen, wiederLog.length);
+  const sicherungsDateien = await Promise.all(wiederLog.filter(eintrag => eintrag.turnierId === id).map(async eintrag =>
+    JSON.parse(await readFile(join(tempOrdner, 'turniere', String(id), 'sicherungen', eintrag.id + '.json'), 'utf8'))));
+  assert.ok(sicherungsDateien.length >= 4 && sicherungsDateien.every(datei => !('vorher' in datei)), 'Sicherungen enthalten nur den neuen Stand.');
+  assert.equal((await readdir(join(tempOrdner, 'turniere', String(neu.id)))).includes('turnier.json'), true);
   const roh = await readFile(join(tempOrdner, 'leitung.json'), 'utf8');
   assert.equal(roh.includes(testPin), false);
 });
 
 test('Fehlgeschlagene Sicherungen lassen aktuelle Daten und Verlauf unverändert', async () => {
-  const daten = await readFile(join(tempOrdner, 'turniere.json'), 'utf8');
   const turnier = (await anfrage()).payload.turniere[0];
-  const dir = join(tempOrdner, 'sicherungen'), verschoben = join(tempOrdner, 'sicherungen-test');
+  const dir = join(tempOrdner, 'turniere', String(turnier.id), 'sicherungen'), verschoben = join(tempOrdner, 'sicherungen-test');
+  const daten = await turnierDateien();
   await rename(dir, verschoben);
   await writeFile(dir, 'Sicherungsordner absichtlich blockiert');
   try {
     assert.equal((await anfrage(`umbenennen&turnier=${turnier.id}`, 'PUT', { version: turnier.version, titel: 'Darf nicht gespeichert werden' })).status, 500);
-    assert.equal(await readFile(join(tempOrdner, 'turniere.json'), 'utf8'), daten);
-  } finally { await rm(dir); await rename(verschoben, dir); }
+    await rm(dir); await rename(verschoben, dir);
+    assert.deepEqual(await turnierDateien(), daten);
+  } finally { if (!(await stat(dir).catch(() => null))?.isDirectory()) { await rm(dir, { force: true }); await rename(verschoben, dir); } }
 });
 
 test('Turnierleitungen mit eigener PIN bearbeiten nur ihr Turnier, die Gesamtverwaltung verwaltet alle Turniere', async () => {
@@ -375,30 +391,37 @@ test('Zu viele falsche PINs werden auch mit neuen Sitzungen gebremst', async () 
   assert.equal((await anfrage('verlauf')).status, 200, 'Bestehende Anmeldung bleibt nutzbar.');
 });
 
-test('Alte Turnierlisten werden verlustfrei übernommen und beschädigte Daten nicht überschrieben', async () => {
+test('Die frühere Sammeldatei wird verlustfrei in Turnierordner übernommen, ein beschädigtes Turnier betrifft nur sich selbst', async () => {
   const datei = join(tempOrdner, 'turniere.json');
-  const vorher = await readFile(datei, 'utf8');
-  // Ausführliches Altformat mit name und spieler an jedem Teilnehmer
   const alt = (await anfrage()).payload.turniere;
   const tischtennis = alt.find(turnier => turnier.sportart === 'tischtennis');
+  const schach = alt.find(turnier => turnier.sportart === 'schach');
   delete tischtennis.sportart;
+  // Frühere reine Turnierliste mit ausführlichem Altformat (name und spieler an jedem Teilnehmer)
   await writeFile(datei, JSON.stringify(alt));
+  assert.deepEqual((await anfrage()).payload.turniere, alt);
+  const dateien = await readdir(tempOrdner);
+  assert.equal(dateien.includes('turniere.json'), false);
+  assert.ok(dateien.includes('turniere.json.alt'));
+  assert.equal((await anfrage(`umbenennen&turnier=${tischtennis.id}`, 'PUT', { version: tischtennis.version, titel: 'Nach Datenübernahme' })).status, 200);
+  const ordner = id => join(tempOrdner, 'turniere', String(id));
+  const gespeichertSchach = JSON.parse(await readFile(join(ordner(schach.id), 'turnier.json'), 'utf8'));
+  assert.deepEqual(gespeichertSchach.runden, schach.runden);
+  assert.deepEqual(Object.keys(gespeichertSchach.teilnehmer[0]).sort(), ['id', 'name'], 'Einzelspieler werden ohne redundante Spielerliste gespeichert.');
+  const gespeichertTischtennis = JSON.parse(await readFile(join(ordner(tischtennis.id), 'turnier.json'), 'utf8'));
+  assert.ok(gespeichertTischtennis.teilnehmer.every(paar => paar.spieler.length === 2 && !('name' in paar)));
+  assert.equal(JSON.parse(await readFile(join(ordner(tischtennis.id), 'verlauf.json'), 'utf8')).at(-1).beschreibung, 'Turnier umbenannt');
+
+  const kaputt = join(ordner(tischtennis.id), 'turnier.json'), vorher = await readFile(kaputt, 'utf8');
+  await writeFile(kaputt, '{kaputt');
   try {
-    assert.deepEqual((await anfrage()).payload.turniere, alt);
-    assert.equal((await anfrage(`umbenennen&turnier=${tischtennis.id}`, 'PUT', { version: tischtennis.version, titel: 'Nach Datenübernahme' })).status, 200);
-    const neu = JSON.parse(await readFile(datei, 'utf8'));
-    assert.equal(neu.format, 'turnierverwaltung-store');
-    assert.equal(neu.turniere.length, alt.length);
-    assert.deepEqual(neu.turniere.find(turnier => turnier.sportart === 'schach').runden, alt.find(turnier => turnier.sportart === 'schach').runden);
-    assert.equal(neu.verlauf.length, 1);
-    const gespeichert = neu.turniere.find(turnier => turnier.sportart === 'schach').teilnehmer[0];
-    assert.deepEqual(Object.keys(gespeichert).sort(), ['id', 'name'], 'Einzelspieler werden ohne redundante Spielerliste gespeichert.');
-    assert.ok(neu.turniere.find(turnier => turnier.id === tischtennis.id).teilnehmer.every(paar => paar.spieler.length === 2 && !('name' in paar)));
-    await writeFile(datei, '{kaputt');
     assert.equal((await anfrage()).status, 500);
-    assert.equal((await anfrage(`umbenennen&turnier=${tischtennis.id}`, 'PUT', { version: tischtennis.version, titel: 'Nicht schreiben' })).status, 500);
-    assert.equal(await readFile(datei, 'utf8'), '{kaputt');
-  } finally { await writeFile(datei, vorher); }
+    assert.equal((await anfrage(`umbenennen&turnier=${tischtennis.id}`, 'PUT', { version: tischtennis.version + 1, titel: 'Nicht schreiben' })).status, 500);
+    assert.equal(await readFile(kaputt, 'utf8'), '{kaputt');
+    const anderes = await fetch(`${basisUrl}/api.php?turnier=${schach.id}`, { headers: { Cookie: leitung.cookie } });
+    assert.equal(anderes.status, 200, 'Andere Turniere bleiben nutzbar.');
+    assert.equal((await anfrage(`umbenennen&turnier=${schach.id}`, 'PUT', { version: schach.version, titel: schach.titel })).status, 200);
+  } finally { await writeFile(kaputt, vorher); }
 });
 
 test('Einzelansicht lädt nur das gewählte Turnier und fällt bei ungültigen Links nicht auf alle zurück', async () => {

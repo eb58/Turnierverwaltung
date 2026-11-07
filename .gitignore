@@ -1,7 +1,9 @@
 data/*.json
 data/*.lock
 data/.turnier-*
+data/turniere/
 data/sicherungen/
+data/*.alt*
 data/sitzungen/
 
 node_modules/

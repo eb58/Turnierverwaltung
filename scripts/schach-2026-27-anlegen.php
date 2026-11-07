@@ -45,7 +45,7 @@ function schachSaisonSpieltage2026(array $turnier): array
 
 if (defined('SCHACH_SAISON_NUR_FUNKTIONEN')) return;
 $_GET['action'] = 'importieren';
-$turnier = withStore(function (array &$turniere, array $verlauf): array {
+$turnier = withStore(function (array &$turniere): array {
     foreach ($turniere as $index => $vorhanden) {
         if ($vorhanden['titel'] !== 'Schachturnier 2026/27' || !istSchach($vorhanden)) continue;
         if (in_array('--spieltage-ergaenzen', $GLOBALS['argv'], true)) {
@@ -77,7 +77,7 @@ $turnier = withStore(function (array &$turniere, array $verlauf): array {
         }
         return $vorhanden;
     }
-    $neu = schachSaison2026(naechsteTurnierId($turniere, $verlauf));
+    $neu = schachSaison2026(naechsteTurnierId());
     // Derselbe Validator wie beim regulären Import, bevor echte Daten gespeichert werden.
     $neu = importiertesTurnier(['format' => 'turnierverwaltung-backup', 'turnier' => $neu], $neu['id']);
     $turniere[] = $neu;

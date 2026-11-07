@@ -343,7 +343,7 @@ try {
     }
     if ($method === 'POST' && $action === 'turnier-pin') {
         $payload = body(); $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT);
-        withStore(fn(array $turniere): int => turnierIndex($turniere, (int) $id));
+        withStore(fn(array $turniere): int => turnierIndex($turniere, (int) $id), false, (int) $id);
         respond(['leitung' => turnierPinSetzen((int) $id, $payload['pin'] ?? null)]);
     }
     if ($method === 'POST' && in_array($action, ['auslosen', 'spieltag-beenden', 'auslosung-zuruecknehmen'], true)) {
@@ -357,7 +357,7 @@ try {
             };
             $turniere[$index]['version']++;
             return ['turnier' => $turniere[$index]];
-        }, true));
+        }, true, (int) $id));
     }
     if ($method === 'GET' && $action === 'verlauf') {
         $info = leitungPruefen();
@@ -408,12 +408,12 @@ try {
                 }
             }
             return ['turniere' => $auswahl, 'leitung' => $leitung, 'zuletztBearbeitet' => $zuletztBearbeitet, 'letzteAenderungen' => (object) $letzteAenderungen];
-        }, $leitung['superadmin']));
+        }, $leitung['superadmin'], $id));
     }
     if ($method === 'POST' && $action === 'anlegen') {
         $payload = body();
-        $result = withStore(function (array &$turniere, array $verlauf) use ($payload): array {
-            $id = naechsteTurnierId($turniere, $verlauf);
+        $result = withStore(function (array &$turniere) use ($payload): array {
+            $id = naechsteTurnierId();
             $turnier = neuesTurnier($payload, $id); array_unshift($turniere, $turnier);
             return ['turnier' => $turnier];
         }, true);
@@ -421,8 +421,8 @@ try {
     }
     if ($method === 'POST' && $action === 'importieren') {
         $payload = body();
-        $result = withStore(function (array &$turniere, array $verlauf) use ($payload): array {
-            $id = naechsteTurnierId($turniere, $verlauf);
+        $result = withStore(function (array &$turniere) use ($payload): array {
+            $id = naechsteTurnierId();
             $turnier = importiertesTurnier($payload, $id); array_unshift($turniere, $turnier);
             return ['turnier' => $turnier];
         }, true);
@@ -435,7 +435,7 @@ try {
             $geloescht = $turniere[$index]['id'];
             array_splice($turniere, $index, 1);
             return ['geloescht' => $geloescht];
-        }, true);
+        }, true, (int) $id);
         turnierPinSetzen($result['geloescht'], null);
         respond($result);
     }
@@ -468,7 +468,7 @@ try {
                 $turniere[$index] = $geprueft;
             }
             return ['turnier' => $turniere[$index]];
-        }, true);
+        }, true, (int) $id);
         respond($result);
     }
     if ($method === 'PUT' && $action === 'umbenennen') {
@@ -478,7 +478,7 @@ try {
             $turniere[$index]['titel'] = text($payload['titel'] ?? null, 100, 'einen Turniernamen');
             $turniere[$index]['version']++;
             return ['turnier' => $turniere[$index]];
-        }, true);
+        }, true, (int) $id);
         respond($result);
     }
     if ($method === 'PUT' && $action === 'teilnehmer') {
@@ -530,7 +530,7 @@ try {
             unset($teilnehmer);
             $turniere[$index]['version']++;
             return ['turnier' => $turniere[$index]];
-        }, true);
+        }, true, (int) $id);
         respond($result);
     }
     if ($method === 'PUT' && $action === 'tische') {
@@ -539,7 +539,7 @@ try {
             $index = turnierIndex($turniere, (int) $id); pruefeVersion($turniere[$index], $payload);
             $turniere[$index]['anzahlTische'] = tischanzahl($payload['anzahlTische'] ?? null);
             $turniere[$index]['version']++; return ['turnier' => $turniere[$index]];
-        }, true);
+        }, true, (int) $id);
         respond($result);
     }
     if ($method === 'PUT' && $action === 'spielwertung') {
@@ -554,7 +554,7 @@ try {
             }
             $turniere[$index]['gewinnsaetze'] = gewinnsatzanzahl($payload['gewinnsaetze'] ?? null);
             $turniere[$index]['version']++; return ['turnier' => $turniere[$index]];
-        }, true);
+        }, true, (int) $id);
         respond($result);
     }
     if ($method === 'PUT' && $action === 'erfassungsart') {
@@ -565,7 +565,7 @@ try {
             if (!is_bool($payload['satzweise'] ?? null)) throw new ApiError('Ungültige Ergebniserfassung.');
             $turniere[$index]['satzweise'] = $payload['satzweise'];
             $turniere[$index]['version']++; return ['turnier' => $turniere[$index]];
-        }, true);
+        }, true, (int) $id);
         respond($result);
     }
     if ($method === 'PUT' && $action === 'ergebnis') {
@@ -574,7 +574,7 @@ try {
             $index = turnierIndex($turniere, (int) $id); pruefeVersion($turniere[$index], $payload);
             $turniere[$index] = turnierErgebnis($turniere[$index], $spielId, $payload); $turniere[$index]['version']++;
             return ['turnier' => $turniere[$index]];
-        }, true);
+        }, true, (int) $id);
         respond($result);
     }
     throw new ApiError('Endpunkt nicht gefunden.', 404);

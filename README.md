@@ -157,23 +157,24 @@ Sichtbare Zuschauer- und Beameransichten aktualisieren sich alle 15 Sekunden aut
 
 | Pfad | Inhalt |
 | --- | --- |
-| `data/turniere.json` | Alle Turniere und das Verzeichnis der Änderungen |
-| `data/sicherungen/` | Automatische Sicherungen mit vorherigem und neuem Turnierstand |
+| `data/turniere/<Nr>/turnier.json` | Aktueller Stand genau eines Turniers |
+| `data/turniere/<Nr>/verlauf.json` | Liste der Änderungen an diesem Turnier |
+| `data/turniere/<Nr>/sicherungen/` | Automatische Sicherung je Änderung mit dem neuen Turnierstand (der vorherige steht in der Sicherung davor) |
 | `data/leitung.json` | Passwort-Hashes und Kennungen für Gesamtverwaltung und Turnierleitungen |
 | `data/sitzungen/` | PHP-Anmeldesitzungen |
 | `data/anmeldeversuche.json` | Daten zur Begrenzung fehlgeschlagener Anmeldeversuche |
 
-Bei jeder Änderung an Turnierdaten wird zuerst eine Sicherung mit Datum und Beschreibung geschrieben. Erst danach ersetzt die Anwendung den aktuellen Stand atomar. Schlägt eine Sicherung fehl, bleiben die aktuellen Daten erhalten. Dateisperren und Versionsprüfungen schützen vor konkurrierenden Schreibzugriffen.
+Bei jeder Änderung an Turnierdaten wird zuerst eine Sicherung mit Datum und Beschreibung geschrieben. Erst danach ersetzt die Anwendung den aktuellen Stand atomar. Schlägt eine Sicherung fehl, bleiben die aktuellen Daten erhalten. Jedes Turnier hat seine eigene Dateisperre, Änderungen an verschiedenen Turnieren behindern sich also nicht. Nur Anlegen, Importieren und Wiederherstellen sperren kurz alle Turniere. Versionsprüfungen schützen zusätzlich vor veralteten Änderungen.
 
-Unter **Sicherungen & Verlauf** können berechtigte Nutzer frühere Stände ansehen und wiederherstellen. Dabei entsteht eine neue Version; andere Turniere bleiben erhalten. Auch gelöschte Turniere lassen sich wiederherstellen. Die Historie beginnt mit der ersten durch diese Funktion gesicherten Änderung. Sicherungen werden dauerhaft aufbewahrt.
+Unter **Sicherungen & Verlauf** können berechtigte Nutzer frühere Stände ansehen und wiederherstellen. Dabei entsteht eine neue Version; andere Turniere bleiben erhalten. Beim Löschen entfernt die Anwendung nur `turnier.json`; Verlauf und Sicherungen bleiben im Turnierordner, deshalb lassen sich auch gelöschte Turniere wiederherstellen, und ihre Nummer wird nicht erneut vergeben. Ein Turnier endgültig entfernen oder archivieren heißt, seinen Ordner zu löschen oder zu verschieben. Die Historie beginnt mit der ersten durch diese Funktion gesicherten Änderung. Sicherungen werden dauerhaft aufbewahrt.
 
-**Exportieren** sichert ein einzelnes Turnier als JSON. **Importieren** legt daraus ein zusätzliches Turnier an und ist der Gesamtverwaltung vorbehalten. PINs und Anmeldesitzungen sind nicht Bestandteil eines Turnierexports oder der automatischen Turniersicherungen. Für einen vollständigen Umzug oder eine zusätzliche Gesamtsicherung das gesamte `data/`-Verzeichnis kopieren.
+**Exportieren** sichert ein einzelnes Turnier als JSON. **Importieren** legt daraus ein zusätzliches Turnier an und ist der Gesamtverwaltung vorbehalten. PINs und Anmeldesitzungen sind nicht Bestandteil eines Turnierexports oder der automatischen Turniersicherungen. Ein einzelnes Turnier samt Verlauf lässt sich auch kopieren, indem man seinen Ordner unter `data/turniere/` mitnimmt. Für einen vollständigen Umzug oder eine zusätzliche Gesamtsicherung das gesamte `data/`-Verzeichnis kopieren.
 
 Das Datenverzeichnis ist nicht versioniert. Apache sperrt den direkten Zugriff über die mitgelieferte `.htaccess`; lokal übernimmt dies `server/router.php`. Bei einem anderen Webserver muss eine entsprechende Zugriffssperre eingerichtet werden.
 
-Die Umgebungsvariable `TURNIER_DATA_FILE` kann den Pfad der Turnierdatei ersetzen. PIN-Konfiguration, Sitzungen und Sicherungen werden dann ebenfalls im Verzeichnis dieser Datei angelegt. Die API-Tests nutzen dies für ein isoliertes temporäres Datenverzeichnis.
+Die Umgebungsvariable `TURNIER_DATA_FILE` legt fest, in welchem Verzeichnis die Daten liegen (das Verzeichnis dieses Dateipfads; die Datei selbst existiert nur noch als alte Sammeldatei). PIN-Konfiguration, Sitzungen und der Ordner `turniere/` werden dort angelegt. Die API-Tests nutzen dies für ein isoliertes temporäres Datenverzeichnis.
 
-Ältere Dateien mit einer reinen Turnierliste werden beim nächsten Speichern automatisch übernommen. Turniere und Sicherungen ohne `sportart` gelten weiterhin als Tischtennis-Doppel.
+Die frühere Sammeldatei `data/turniere.json` samt `data/sicherungen/` (auch als reine Turnierliste) wird beim ersten Zugriff automatisch in Turnierordner aufgeteilt und danach als `turniere.json.alt` aufbewahrt. Turniere und Sicherungen ohne `sportart` gelten weiterhin als Tischtennis-Doppel.
 
 Anmeldungen verwenden CSRF-Token und Cookies mit `HttpOnly` und `SameSite=Strict`, bei HTTPS zusätzlich `Secure`. PINs werden ausschließlich als Passwort-Hashes gespeichert.
 
