@@ -51,21 +51,51 @@ input, select { width: 100%; padding: .5rem .65rem; background: white; color: va
 .nav { display: grid; gap: 1.1rem; }
 .nav-gruppe { display: grid; gap: .25rem; }
 .nav-gruppentitel { margin: 0 0 .2rem; padding: 0 .75rem; color: #b6d9d4; font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.nav-gruppe select { margin-bottom: .35rem; color: #fff; background: #0c3532; border-color: rgba(255, 255, 255, .25); }
-.nav-gruppe select option { color: var(--ink); background: #fff; }
 .nav button { display: flex; align-items: center; gap: .7rem; width: 100%; min-height: 42px; padding: 0 .75rem; color: #e6f2f0; background: transparent; border: 0; border-radius: 8px; font-weight: 600; text-align: left; }
 .nav button:hover { color: #fff; background: rgba(255, 255, 255, .1); }
 .nav button.nav-gefahr { color: #fecaca; }
 .nav button.nav-gefahr:hover { color: #fff; background: rgba(220, 38, 38, .55); }
 .nav button:disabled { cursor: not-allowed; opacity: .45; }
 .nav button:disabled:hover { background: transparent; }
+.turnier-wechsler { display: grid; gap: .35rem; margin-bottom: .45rem; }
+.nav button.turnier-aktuell { gap: .7rem; min-height: 66px; padding: .55rem .65rem; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .14); border-radius: 12px; transition: background .15s ease, border-color .15s ease; }
+.nav button.turnier-aktuell:hover, .nav button.turnier-aktuell[aria-expanded="true"] { background: rgba(255, 255, 255, .12); border-color: rgba(94, 234, 212, .55); }
+.turnier-motiv { display: grid; flex: 0 0 40px; place-items: center; width: 40px; height: 40px; background: #fff; border-radius: 10px; box-shadow: 0 3px 8px rgba(0, 0, 0, .2); }
+.turnier-motiv img { width: 34px; height: 26px; object-fit: contain; }
+.turnier-karte-text { display: grid; flex: 1; gap: .2rem; min-width: 0; }
+.turnier-karte-titel, .turnier-karte-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.turnier-karte-titel { color: #fff; font-weight: 700; line-height: 1.25; }
+.turnier-karte-meta { color: #b6d9d4; font-size: .76rem; font-weight: 500; }
+.turnier-karte-leer { color: #b6d9d4; font-weight: 500; }
+.turnier-fortschritt { height: 4px; margin-top: .1rem; overflow: hidden; background: rgba(255, 255, 255, .15); border-radius: 2px; }
+.turnier-fortschritt span { display: block; height: 100%; background: #5eead4; border-radius: inherit; }
+.turnier-fortschritt.fertig span { background: #fbbf24; }
+.turnier-pfeil { flex: 0 0 18px; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: .75; transition: transform .18s ease; }
+[aria-expanded="true"] > .turnier-pfeil { transform: rotate(180deg); }
+.turnier-liste { display: grid; gap: .4rem; max-height: min(440px, 55dvh); padding: .4rem; overflow-y: auto; background: #0a2e2b; border: 1px solid rgba(255, 255, 255, .12); border-radius: 12px; box-shadow: inset 0 2px 8px rgba(0, 0, 0, .25); }
+.turnier-liste input[type="search"] { min-height: 38px; color: #fff; background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .2); }
+.turnier-liste input[type="search"]::placeholder { color: #9cc7c1; }
+.turnier-liste ul { display: grid; gap: .15rem; margin: 0; padding: 0; list-style: none; }
+.turnier-liste-titel { padding: .5rem .5rem .15rem; color: #9cc7c1; font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.turnier-liste-leer { padding: .5rem; color: #9cc7c1; font-size: .85rem; }
+.nav button.turnier-eintrag { gap: .6rem; min-height: 54px; padding: .4rem .55rem; border-radius: 9px; }
+.turnier-eintrag .turnier-motiv { flex-basis: 32px; width: 32px; height: 32px; border-radius: 8px; box-shadow: none; }
+.turnier-eintrag .turnier-motiv img { width: 26px; height: 20px; }
+.turnier-eintrag .turnier-karte-titel { font-weight: 600; }
+.nav button.turnier-eintrag[aria-current="true"] { background: rgba(94, 234, 212, .16); box-shadow: inset 3px 0 0 #5eead4; }
+.nav button.turnier-eintrag:focus-visible, .nav button.turnier-aktuell:focus-visible { outline: 2px solid #5eead4; outline-offset: 1px; }
 .nav-icon { flex: 0 0 20px; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .nav-label { min-width: 0; }
 .zugang { padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, .12); gap: .25rem; }
 .nav-status { padding: 0 .75rem .35rem; color: #b6d9d4; font-size: .82rem; }
 .navigation-klein .seitenleiste { gap: .9rem; padding: 1.1rem .5rem; }
 .navigation-klein .seitenleiste-kopf { justify-content: center; align-items: flex-start; min-height: 96px; padding-right: 0; }
-.navigation-klein .seitenleiste-titel, .navigation-klein .nav-gruppentitel, .navigation-klein .nav-gruppe select, .navigation-klein .nav-status { display: none; }
+.navigation-klein .seitenleiste-titel, .navigation-klein .nav-gruppentitel, .navigation-klein .nav-status { display: none; }
+@media (min-width: 901px) {
+  .navigation-klein .turnier-karte-text, .navigation-klein .turnier-pfeil, .navigation-klein .turnier-liste { display: none; }
+  .navigation-klein .nav button.turnier-aktuell { justify-content: center; min-height: 52px; padding: .3rem; background: transparent; border-color: transparent; }
+  .navigation-klein .nav button.turnier-aktuell:hover { background: rgba(255, 255, 255, .1); }
+}
 .navigation-klein .seitenleiste-logo { width: 38px; height: 46px; }
 .navigation-klein .navigation-umschalten { top: 4.6rem; right: 15px; }
 .navigation-klein .navigation-umschalten svg { transform: scaleX(-1); }
@@ -189,7 +219,7 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
 .freie-partie { padding: .7rem; border: 1px dashed var(--accent); border-radius: 8px; }
 .zuschauer .leitung-only { display: none; }
 .kein-superadmin .superadmin-only { display: none; }
-.einzelansicht #turnierAuswahl, .einzelansicht label[for="turnierAuswahl"],
+.einzelansicht #turnierWechsler, .einzelansicht #turnierGruppentitel,
 .einzelansicht #neuesTurnier, .einzelansicht #importieren,
 .einzelansicht #verlaufOeffnen, .einzelansicht #turnierLoeschen { display: none; }
 .zuschauer.einzelansicht .nav-gruppe:first-child { display: none; }
@@ -262,8 +292,7 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
   .menue-umschalten { display: grid; }
   .navigation-inhalt { position: absolute; top: calc(100% + 4px); left: .5rem; width: min(300px, calc(100% - 1rem)); max-height: calc(100dvh - 80px); padding: .75rem; overflow-y: auto; background: #0f403c; border-radius: 10px; box-shadow: 0 14px 30px rgba(0, 0, 0, .35); }
   body:not(.menue-offen) .navigation-inhalt { display: none; }
-  .navigation-klein .nav-gruppentitel, .navigation-klein .nav-gruppe select, .navigation-klein .nav-status { display: block; }
-  .navigation-klein .nav-gruppe select { width: 100%; }
+  .navigation-klein .nav-gruppentitel, .navigation-klein .nav-status { display: block; }
   .navigation-klein .nav-gruppe + .nav-gruppe { padding-top: 0; border-top: 0; }
   .navigation-klein .nav button { justify-content: flex-start; min-height: 42px; padding: 0 .75rem; }
   .navigation-klein .nav-label { position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto; white-space: normal; }
