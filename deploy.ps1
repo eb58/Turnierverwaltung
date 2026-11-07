@@ -32,7 +32,7 @@ if ($WhatIfOnly) {
 $localPinFile = Join-Path $projectRoot 'data/leitung.json'
 if (!(Test-Path -LiteralPath $localPinFile -PathType Leaf)) { throw 'Bitte zuerst die PIN der Gesamtverwaltung mit php server/pin-einrichten.php einrichten.' }
 
-# Strato nimmt keine Anmeldung per SSH-Schluessel an. Damit das Passwort nur einmal abgefragt wird,
+# Ssh meldet sich mit einem hinterlegten Schluessel an, sonst per Passwort. Damit ein Passwort hoechstens einmal abgefragt wird,
 # geht alles in einer einzigen Verbindung: Die Dateien reisen als Base64-Paket im Shell-Skript mit,
 # der Server entpackt sie in ein temporaeres Verzeichnis und kopiert sie an ihren Platz.
 $temp = Join-Path ([IO.Path]::GetTempPath()) ("turnierverwaltung-deploy-" + [guid]::NewGuid())
@@ -76,7 +76,7 @@ try {
     [IO.File]::WriteAllText($skriptDatei, $skript + "`n", (New-Object Text.UTF8Encoding $false))
     if ($SkriptNach) { Copy-Item -LiteralPath $skriptDatei -Destination $SkriptNach; Write-Host "Skript geschrieben: $SkriptNach"; exit 0 }
 
-    Write-Host "Lade hoch nach ${User}@${Server}:${remoteApp}/ (Passwort wird einmal abgefragt)..." -ForegroundColor Cyan
+    Write-Host "Lade hoch nach ${User}@${Server}:${remoteApp}/ (ein Passwort wird nur abgefragt, wenn kein SSH-Schluessel hinterlegt ist)..." -ForegroundColor Cyan
     $ssh = Start-Process -FilePath ssh -ArgumentList @('-p', $Port, '-o', 'UpdateHostKeys=no', "${User}@${Server}", 'sh -s') `
         -RedirectStandardInput $skriptDatei -NoNewWindow -Wait -PassThru
     if ($ssh.ExitCode -ne 0) { throw "Deploy fehlgeschlagen (ssh-Exitcode $($ssh.ExitCode))." }
