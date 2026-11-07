@@ -394,12 +394,20 @@ try {
         $id = filter_input(INPUT_GET, 'turnier', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         if ($id === false) throw new ApiError('Ungültige Turniernummer.');
         $leitung = leitungInfo();
-        respond(withStore(function (array &$turniere) use ($leitung, $id): array {
+        respond(withStore(function (array &$turniere, array $verlauf) use ($leitung, $id): array {
             if ($leitung['superadmin']) ungespielteKoTurniereUmstellen($turniere);
             // Ohne Turnier-Link sieht man nur die Turniere, für die man angemeldet ist.
             $auswahl = $id !== null ? [$turniere[turnierIndex($turniere, $id)]]
                 : array_values(array_filter($turniere, fn(array $turnier): bool => darfTurnier($leitung, $turnier['id'])));
-            return ['turniere' => $auswahl, 'leitung' => $leitung];
+            // Das zuletzt geänderte Turnier wird nach dem Anmelden direkt geöffnet.
+            $zuletztBearbeitet = null;
+            if ($leitung['angemeldet']) {
+                $sichtbar = array_column($auswahl, 'id');
+                for ($i = count($verlauf) - 1; $i >= 0 && $zuletztBearbeitet === null; $i--) {
+                    if (in_array($verlauf[$i]['turnierId'], $sichtbar, true)) $zuletztBearbeitet = $verlauf[$i]['turnierId'];
+                }
+            }
+            return ['turniere' => $auswahl, 'leitung' => $leitung, 'zuletztBearbeitet' => $zuletztBearbeitet];
         }, $leitung['superadmin']));
     }
     if ($method === 'POST' && $action === 'anlegen') {

@@ -640,6 +640,7 @@ const render = () => {
   }
   if (!state.turniere.some(turnier => turnier.id === state.ausgewaehlt)) state.ausgewaehlt = state.turniere[0]?.id ?? null;
   auswahl.value = state.ausgewaehlt ?? '';
+  letztesTurnierMerken(state.ausgewaehlt);
   $('turnierBearbeiten').dataset.gesperrt = String(state.ausgewaehlt === null);
   $('turnierBearbeiten').disabled = state.ausgewaehlt === null;
   $('turnierLoeschen').dataset.gesperrt = String(state.ausgewaehlt === null);
@@ -655,12 +656,27 @@ const render = () => {
 
 // Die automatische Aktualisierung übergeht kurze Verbindungsaussetzer und meldet erst wiederholte Fehlschläge.
 let fehlgeschlageneAktualisierungen = 0;
+// Ohne Turnier-Link öffnet die Verwaltung das zuletzt auf diesem Gerät ausgewählte Turnier,
+// sonst das zuletzt geänderte.
+const LETZTES_TURNIER_KEY = 'turnierverwaltung.letztesTurnier';
+const letztesTurnierMerken = id => { if (!einzelAnsicht && id !== null) try { localStorage.setItem(LETZTES_TURNIER_KEY, String(id)); } catch {} };
+const zuletztBearbeitetesWaehlen = result => {
+  if (einzelAnsicht) return;
+  let gemerkt = null;
+  try { gemerkt = Number(localStorage.getItem(LETZTES_TURNIER_KEY)) || null; } catch {}
+  const sichtbar = id => state.turniere.some(turnier => turnier.id === id);
+  if (sichtbar(gemerkt)) state.ausgewaehlt = gemerkt;
+  else if (sichtbar(result.zuletztBearbeitet)) state.ausgewaehlt = result.zuletztBearbeitet;
+};
+let ersteLadung = true;
 const load = async ({ hintergrund = false } = {}) => {
   if (state.busy) return;
   setBusy(true);
   if (!hintergrund) meldung('');
   try {
-    const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung; render();
+    const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung;
+    if (ersteLadung) { zuletztBearbeitetesWaehlen(result); ersteLadung = false; }
+    render();
     if (hintergrund && fehlgeschlageneAktualisierungen >= 3) meldung('');
     fehlgeschlageneAktualisierungen = 0;
   } catch (error) {
@@ -882,6 +898,7 @@ $('leitungForm').addEventListener('submit', async event => {
   try {
     state.leitung = (await request('anmelden', { method: 'POST', body: JSON.stringify({ pin, turnier: state.ausgewaehlt }) })).leitung;
     const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung;
+    zuletztBearbeitetesWaehlen(result);
     $('leitungDialog').close(); render(); meldung(istSuperadmin() ? 'Als Gesamtverwaltung angemeldet.' : 'Als Turnierleitung angemeldet.', 'erfolg');
   } catch (error) { inlineFehler('leitungFehler', error.message); }
   finally { $('leitungForm').elements.pin.value = ''; setBusy(false); }
