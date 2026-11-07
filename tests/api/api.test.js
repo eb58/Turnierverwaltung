@@ -241,8 +241,12 @@ test('Sicherungen zeigen vorher/nachher, stellen gelöschte Turniere wieder her 
   turnier = (await anfrage(`ergebnis&turnier=${id}&spiel=r1-s1`, 'PUT', { version: turnier.version, punkteA: 0.5, punkteB: 0.5 })).payload.turnier;
   const remisStand = structuredClone(turnier);
   turnier = (await anfrage(`ergebnis&turnier=${id}&spiel=r1-s1`, 'PUT', { version: turnier.version, punkteA: 1, punkteB: 0 })).payload.turnier;
-  assert.equal((await anfrage()).payload.zuletztBearbeitet, id, 'Das zuletzt geänderte Turnier wird nach dem Anmelden geöffnet.');
-  assert.equal((await anfrage('', 'GET', undefined, gast)).payload.zuletztBearbeitet, null);
+  const uebersicht = (await anfrage()).payload;
+  assert.equal(uebersicht.zuletztBearbeitet, id, 'Das zuletzt geänderte Turnier wird nach dem Anmelden geöffnet.');
+  assert.match(uebersicht.letzteAenderungen[id], /^\d{4}-\d{2}-\d{2}T/);
+  const gastSicht = (await anfrage('', 'GET', undefined, gast)).payload;
+  assert.equal(gastSicht.zuletztBearbeitet, null);
+  assert.deepEqual(gastSicht.letzteAenderungen, {});
   const log = (await anfrage('verlauf')).payload.verlauf;
   const korrektur = log.find(eintrag => eintrag.turnierId === id && eintrag.vorherVersion === 2);
   assert.match(korrektur.beschreibung, /½:½.*1:0/);

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f766e">
   <title>Turnierverwaltung</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230f766e'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='white'%3E%E2%86%94%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css?v=39">
+  <link rel="stylesheet" href="styles.css?v=41">
 </head>
 <body class="zuschauer">
   <div class="app-layout">
@@ -37,36 +37,28 @@
         <symbol id="icon-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5m4-1v5l3 2"></path></symbol>
         <symbol id="icon-login" viewBox="0 0 24 24"><path d="M14 4h5v16h-5M10 8l4 4-4 4m4-4H3"></path></symbol>
         <symbol id="icon-key" viewBox="0 0 24 24"><path d="M14 10a4 4 0 1 0-3.9 4.9L8 17v3h3v-2h2l1.1-3.1A4 4 0 0 0 14 10zm1-2h.01"></path></symbol>
-        <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></symbol>
+        <symbol id="icon-grid" viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"></path></symbol>
         <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M10 4H5v16h5M14 8l4 4-4 4m4-4H8"></path></symbol>
       </svg>
       <div id="navigationInhalt" class="navigation-inhalt">
         <nav class="nav" aria-label="Turnierfunktionen">
-          <div class="nav-gruppe">
-            <p id="turnierGruppentitel" class="nav-gruppentitel">Turnier</p>
-            <div id="turnierWechsler" class="turnier-wechsler">
-              <button id="turnierWechslerKnopf" class="turnier-aktuell" type="button" aria-expanded="false" aria-controls="turnierListe"></button>
-              <div id="turnierListe" class="turnier-liste" hidden>
-                <input id="turnierSuche" type="search" placeholder="Turnier suchen …" aria-label="Turnier suchen" autocomplete="off">
-                <ul id="turnierListeEintraege" aria-label="Turniere"></ul>
-              </div>
-            </div>
-            <button id="neuesTurnier" class="management-only leitung-only superadmin-only" type="button" title="Neues Turnier anlegen"><svg class="nav-icon" aria-hidden="true"><use href="#icon-plus"></use></svg><span class="nav-label">Neues Turnier anlegen</span></button>
-            <button id="turnierBearbeiten" class="management-only leitung-only" type="button" title="Turnier ändern"><svg class="nav-icon" aria-hidden="true"><use href="#icon-edit"></use></svg><span class="nav-label">Turnier ändern</span></button>
-            <button id="turnierLoeschen" class="nav-gefahr management-only leitung-only superadmin-only" type="button" title="Turnier löschen"><svg class="nav-icon" aria-hidden="true"><use href="#icon-trash"></use></svg><span class="nav-label">Turnier löschen</span></button>
-            <button id="turnierPinOeffnen" class="management-only leitung-only superadmin-only" type="button" title="PIN der Turnierleitung festlegen"><svg class="nav-icon" aria-hidden="true"><use href="#icon-key"></use></svg><span class="nav-label">Turnier-PIN festlegen</span></button>
+          <div id="verwaltungGruppe" class="nav-gruppe superadmin-only">
+            <button id="verwaltungOeffnen" type="button" title="Gesamtverwaltung: alle Turniere, Zugänge und Sicherungen"><svg class="nav-icon" aria-hidden="true"><use href="#icon-grid"></use></svg><span class="nav-label">Gesamtverwaltung</span></button>
           </div>
-          <div class="nav-gruppe">
+          <div id="turnierGruppe" class="nav-gruppe turnier-funktion">
+            <p id="turnierGruppentitel" class="nav-gruppentitel">Turnier</p>
+            <button id="turnierBearbeiten" class="management-only leitung-only turnier-funktion" type="button" title="Turnier ändern"><svg class="nav-icon" aria-hidden="true"><use href="#icon-edit"></use></svg><span class="nav-label">Turnier ändern</span></button>
+          </div>
+          <div class="nav-gruppe turnier-funktion">
             <p class="nav-gruppentitel">Ansicht &amp; Ausgabe</p>
             <button id="beamerAnsicht" class="management-only" type="button" title="Beameransicht"><svg class="nav-icon" aria-hidden="true"><use href="#icon-beamer"></use></svg><span class="nav-label">Beameransicht</span></button>
             <button id="turnierLink" class="management-only leitung-only" type="button" title="Link zu diesem Turnier kopieren"><svg class="nav-icon" aria-hidden="true"><use href="#icon-link"></use></svg><span class="nav-label">Link zu diesem Turnier</span></button>
             <button id="drucken" class="management-only leitung-only" type="button" title="Drucken"><svg class="nav-icon" aria-hidden="true"><use href="#icon-print"></use></svg><span class="nav-label">Drucken</span></button>
             <button id="siegerurkunden" class="management-only leitung-only" type="button" title="Urkunden (Platz 1–3)"><svg class="nav-icon" aria-hidden="true"><use href="#icon-award"></use></svg><span class="nav-label">Urkunden (Platz 1–3)</span></button>
           </div>
-          <div class="nav-gruppe leitung-only">
+          <div class="nav-gruppe leitung-only turnier-funktion">
             <p class="nav-gruppentitel">Daten &amp; Sicherungen</p>
             <button id="exportieren" class="management-only leitung-only" type="button" title="Exportieren"><svg class="nav-icon" aria-hidden="true"><use href="#icon-export"></use></svg><span class="nav-label">Exportieren</span></button>
-            <button id="importieren" class="management-only leitung-only superadmin-only" type="button" title="Importieren"><svg class="nav-icon" aria-hidden="true"><use href="#icon-import"></use></svg><span class="nav-label">Importieren</span></button>
             <button id="verlaufOeffnen" class="management-only leitung-only" type="button" title="Sicherungen &amp; Verlauf"><svg class="nav-icon" aria-hidden="true"><use href="#icon-history"></use></svg><span class="nav-label">Sicherungen &amp; Verlauf</span></button>
             <input id="importDatei" type="file" accept="application/json,.json" hidden>
           </div>
@@ -186,6 +178,7 @@
       </form>
     </dialog>
 
+    <section id="verwaltung" class="verwaltung" aria-labelledby="verwaltungTitel" hidden></section>
     <section id="details" class="panel" aria-label="Spielplan und Ergebnisse"></section>
   </main>
   </div>
@@ -205,6 +198,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=84"></script>
+  <script type="module" src="app.js?v=86"></script>
 </body>
 </html>

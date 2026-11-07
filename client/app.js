@@ -33,14 +33,10 @@ try { navigationKleinGemerkt = localStorage.getItem(NAVIGATION_KLEIN_KEY) === '1
 navigationVerkleinern(navigationKleinGemerkt, false);
 $('navigationUmschalten').addEventListener('click', () => navigationVerkleinern(!document.body.classList.contains('navigation-klein')));
 $('menueUmschalten').addEventListener('click', () => menueOeffnen(!document.body.classList.contains('menue-offen')));
-$('navigationInhalt').addEventListener('click', event => { if (event.target.closest('button:not(#turnierWechslerKnopf)')) menueOeffnen(false); });
-document.addEventListener('keydown', event => {
-  if (event.key !== 'Escape') return;
-  if (!$('turnierListe').hidden) { turnierListeOeffnen(false); $('turnierWechslerKnopf').focus(); return; }
-  if (document.body.classList.contains('menue-offen')) menueOeffnen(false);
-});
+$('navigationInhalt').addEventListener('click', event => { if (event.target.closest('button')) menueOeffnen(false); });
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && document.body.classList.contains('menue-offen')) menueOeffnen(false); });
 document.addEventListener('click', event => { if (!event.target.closest('.seitenleiste')) menueOeffnen(false); });
-const state = { turniere: [], ausgewaehlt: Number(parameter.get('turnier')) || null, busy: false, beamer: parameter.has('beamer'), leitung: { eingerichtet: false, angemeldet: false, superadmin: false, turniere: [], csrf: '' }, verlauf: [] };
+const state = { turniere: [], ausgewaehlt: Number(parameter.get('turnier')) || null, ansicht: parameter.has('verwaltung') ? 'verwaltung' : 'turnier', letzteAenderungen: {}, busy: false, beamer: parameter.has('beamer'), leitung: { eingerichtet: false, angemeldet: false, superadmin: false, turniere: [], csrf: '' }, verlauf: [] };
 const istSuperadmin = () => state.leitung.superadmin && !state.beamer;
 // Turnierleitungen dürfen nur ihr eigenes Turnier bearbeiten, die Gesamtverwaltung alle.
 const darfBearbeiten = () => !state.beamer && (state.leitung.superadmin || state.leitung.turniere.includes(state.ausgewaehlt));
@@ -635,97 +631,102 @@ const renderDetails = () => {
   details.append(runden);
 };
 
-// Turnierwechsel in der Seitenleiste: Karte des aktuellen Turniers, die eine Liste aller Turniere aufklappt.
-const turnierKarte = turnier => {
-  const fortschritt = turnierFortschritt(turnier), fertig = turnierIstAbgeschlossen(turnier);
-  const motiv = el('span', undefined, 'turnier-motiv'), bild = el('img');
-  bild.src = sportartMotivUrl(turnier); bild.alt = ''; motiv.append(bild);
-  const text = el('span', undefined, 'turnier-karte-text');
-  const stand = fertig ? 'abgeschlossen' : `${fortschritt.fertig} von ${fortschritt.gesamt} ${istSchach(turnier) ? 'Partien' : 'Spielen'}`;
-  const balken = el('span', undefined, `turnier-fortschritt${fertig ? ' fertig' : ''}`), fuellung = el('span');
-  fuellung.style.width = `${fortschritt.gesamt ? Math.round(100 * fortschritt.fertig / fortschritt.gesamt) : 0}%`; balken.append(fuellung);
-  text.append(el('span', turnier.titel, 'turnier-karte-titel'), el('span', `${sportartName(turnier)} · ${stand}`, 'turnier-karte-meta'), balken);
-  return [motiv, text];
-};
-const turnierListeIstOffen = () => !$('turnierListe').hidden;
-const turnierListeOeffnen = offen => {
-  $('turnierListe').hidden = !offen;
-  $('turnierWechslerKnopf').setAttribute('aria-expanded', String(offen));
-  if (!offen) { if ($('turnierSuche').value) { $('turnierSuche').value = ''; renderTurnierListe(); } return; }
-  if (!$('turnierSuche').hidden) $('turnierSuche').focus();
-  else $('turnierListeEintraege').querySelector('[aria-current="true"]')?.focus();
-};
-const renderTurnierListe = () => {
-  const liste = $('turnierListeEintraege'), begriff = $('turnierSuche').value.trim().toLocaleLowerCase('de');
-  liste.replaceChildren();
-  const passende = state.turniere.filter(turnier => !begriff || turnier.titel.toLocaleLowerCase('de').includes(begriff));
-  const laufend = passende.filter(turnier => !turnierIstAbgeschlossen(turnier));
-  const abgeschlossen = passende.filter(turnier => turnierIstAbgeschlossen(turnier));
-  for (const [titel, gruppe] of [['Laufend', laufend], ['Abgeschlossen', abgeschlossen]]) {
-    if (!gruppe.length) continue;
-    if (laufend.length && abgeschlossen.length) liste.append(el('li', titel, 'turnier-liste-titel'));
-    for (const turnier of gruppe) {
-      const eintrag = el('li'), knopf = el('button', undefined, 'turnier-eintrag'); knopf.type = 'button';
-      knopf.title = `${turnier.titel} · ${sportartName(turnier)} · ${modusName(turnier.modus)}`;
-      if (turnier.id === state.ausgewaehlt) knopf.setAttribute('aria-current', 'true');
-      knopf.append(...turnierKarte(turnier));
-      knopf.addEventListener('click', () => { state.ausgewaehlt = turnier.id; turnierListeOeffnen(false); render(); $('turnierWechslerKnopf').focus(); });
-      eintrag.append(knopf); liste.append(eintrag);
-    }
+// Die Gesamtverwaltung hat eine eigene Ansicht (?verwaltung) mit allen Turnieren, Zugängen und Sicherungen.
+const inVerwaltung = () => istSuperadmin() && !einzelAnsicht && (state.ansicht === 'verwaltung' || !state.turniere.length);
+const ansichtWechseln = ansicht => {
+  if (state.ansicht !== ansicht) {
+    state.ansicht = ansicht;
+    const url = new URL(location.href);
+    if (ansicht === 'verwaltung') url.searchParams.set('verwaltung', ''); else url.searchParams.delete('verwaltung');
+    history.pushState(null, '', url.href.replace('verwaltung=', 'verwaltung').replace(/\?$/, ''));
   }
-  if (!passende.length) liste.append(el('li', 'Kein Turnier gefunden.', 'turnier-liste-leer'));
+  render(); window.scrollTo(0, 0);
 };
-const renderTurnierWechsler = () => {
-  const knopf = $('turnierWechslerKnopf'), turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
-  knopf.replaceChildren();
-  if (turnier) {
-    const pfeil = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), verweis = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-    pfeil.classList.add('turnier-pfeil'); pfeil.setAttribute('aria-hidden', 'true'); verweis.setAttribute('href', '#icon-chevron'); pfeil.append(verweis);
-    knopf.append(...turnierKarte(turnier), pfeil);
-  } else knopf.append(el('span', 'Noch kein Turnier', 'turnier-karte-leer'));
-  knopf.title = turnier ? `${turnier.titel} – Turnier wechseln` : '';
-  knopf.setAttribute('aria-label', turnier ? `Turnier: ${turnier.titel}. Turnier wechseln` : 'Noch kein Turnier');
-  knopf.dataset.gesperrt = String(!turnier);
-  knopf.disabled = state.busy || !turnier;
-  if (!turnier) turnierListeOeffnen(false);
-  $('turnierSuche').hidden = state.turniere.length <= 6;
-  renderTurnierListe();
+const turnierOeffnen = id => { state.ausgewaehlt = id; ansichtWechseln('turnier'); };
+window.addEventListener('popstate', () => { state.ansicht = new URLSearchParams(location.search).has('verwaltung') ? 'verwaltung' : 'turnier'; render(); });
+const aenderungMerken = id => { state.letzteAenderungen = { ...state.letzteAenderungen, [id]: new Date().toISOString() }; };
+const datumText = zeit => new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(zeit));
+const knopfMitIcon = (text, icon, className = '') => {
+  const knopf = el('button', undefined, className); knopf.type = 'button';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), verweis = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  svg.classList.add('knopf-icon'); svg.setAttribute('aria-hidden', 'true'); verweis.setAttribute('href', `#icon-${icon}`); svg.append(verweis);
+  knopf.append(svg, el('span', text)); return knopf;
 };
-$('turnierWechslerKnopf').addEventListener('click', () => {
-  // In der schmalen Navigation ist kein Platz für die Liste, deshalb wird sie dafür verbreitert.
-  if (document.body.classList.contains('navigation-klein') && matchMedia('(min-width: 901px)').matches) navigationVerkleinern(false, false);
-  turnierListeOeffnen(!turnierListeIstOffen());
-});
-$('turnierSuche').addEventListener('input', renderTurnierListe);
-$('turnierSuche').addEventListener('keydown', event => {
-  if (event.key === 'Enter') { event.preventDefault(); $('turnierListeEintraege').querySelector('button')?.click(); }
-  if (event.key === 'ArrowDown') { event.preventDefault(); $('turnierListeEintraege').querySelector('button')?.focus(); }
-});
-$('turnierListe').addEventListener('keydown', event => {
-  if (!['ArrowDown', 'ArrowUp'].includes(event.key) || !event.target.matches('.turnier-eintrag')) return;
-  event.preventDefault();
-  const knoepfe = [...$('turnierListeEintraege').querySelectorAll('button')], index = knoepfe.indexOf(event.target);
-  const ziel = knoepfe[index + (event.key === 'ArrowDown' ? 1 : -1)];
-  if (ziel) ziel.focus(); else if (event.key === 'ArrowUp' && !$('turnierSuche').hidden) $('turnierSuche').focus();
-});
-document.addEventListener('click', event => { if (turnierListeIstOffen() && event.target.isConnected && !event.target.closest('#turnierWechsler')) turnierListeOeffnen(false); });
+const verwaltungsKarte = turnier => {
+  const fortschritt = turnierFortschritt(turnier), fertig = turnierIstAbgeschlossen(turnier);
+  const pin = state.leitung.turnierPins?.includes(turnier.id), geaendert = state.letzteAenderungen[turnier.id];
+  const karte = el('article', undefined, `verwaltung-karte${turnier.id === state.ausgewaehlt ? ' aktuell' : ''}`);
+  const kopf = el('div', undefined, 'verwaltung-karte-kopf'), motiv = el('img'), text = el('div');
+  motiv.src = sportartMotivUrl(turnier); motiv.alt = ''; motiv.width = 56; motiv.height = 42;
+  const teilnehmer = `${turnier.teilnehmer.length} ${istSchach(turnier) ? 'Spieler' : 'Doppelpaare'}`;
+  text.append(el('h4', turnier.titel), el('p', `${sportartName(turnier)} · ${modusName(turnier.modus)} · ${teilnehmer}`, 'muted'));
+  kopf.append(motiv, text);
+  const stand = el('div', undefined, `verwaltung-fortschritt${fertig ? ' fertig' : ''}`), balken = el('div', undefined, 'balken'), fuellung = el('span');
+  fuellung.style.width = `${fortschritt.gesamt ? Math.round(100 * fortschritt.fertig / fortschritt.gesamt) : 0}%`; balken.append(fuellung);
+  stand.append(balken, el('span', fertig ? 'Abgeschlossen' : `${fortschritt.fertig} von ${fortschritt.gesamt} ${istSchach(turnier) ? 'Partien' : 'Spielen'} gespielt`));
+  const marken = el('div', undefined, 'verwaltung-marken');
+  marken.append(el('span', pin ? 'Turnier-PIN eingerichtet' : 'Keine Turnier-PIN', `marke ${pin ? 'ok' : 'warnung'}`));
+  if (geaendert) marken.append(el('span', `Geändert ${datumText(geaendert)}`, 'marke'));
+  const aktionen = el('div', undefined, 'verwaltung-aktionen');
+  const oeffnen = el('button', 'Öffnen', 'small'); oeffnen.type = 'button'; oeffnen.addEventListener('click', () => turnierOeffnen(turnier.id));
+  const aendern = el('button', 'Ändern', 'secondary small'); aendern.type = 'button'; aendern.addEventListener('click', () => { state.ausgewaehlt = turnier.id; turnierFormOeffnen(turnier); });
+  const link = el('button', 'Link kopieren', 'secondary small'); link.type = 'button'; link.addEventListener('click', () => void turnierLinkKopieren(turnier.id));
+  const pinKnopf = el('button', pin ? 'PIN ändern' : 'PIN festlegen', 'secondary small'); pinKnopf.type = 'button'; pinKnopf.addEventListener('click', () => turnierPinDialogOeffnen(turnier));
+  const loeschen = el('button', 'Löschen', 'danger small rechts'); loeschen.type = 'button'; loeschen.addEventListener('click', () => void turnierLoeschen(turnier));
+  aktionen.append(oeffnen, aendern, link, pinKnopf, loeschen);
+  karte.append(kopf, stand, marken, aktionen);
+  return karte;
+};
+const renderVerwaltung = () => {
+  const seite = $('verwaltung'); seite.replaceChildren();
+  const kopf = el('div', undefined, 'verwaltung-kopf'), titel = el('div');
+  const h2 = el('h2', 'Gesamtverwaltung'); h2.id = 'verwaltungTitel';
+  titel.append(h2, el('p', 'Alle Turniere, Zugänge der Turnierleitungen und Sicherungen an einem Ort.', 'muted'));
+  const toolbar = el('div', undefined, 'toolbar');
+  const neu = knopfMitIcon('Neues Turnier', 'plus'); neu.addEventListener('click', neuesTurnierOeffnen);
+  const importieren = knopfMitIcon('Importieren', 'import', 'secondary'); importieren.addEventListener('click', () => $('importDatei').click());
+  const verlauf = knopfMitIcon('Sicherungen & Verlauf', 'history', 'secondary'); verlauf.addEventListener('click', () => void verlaufOeffnen(null));
+  toolbar.append(neu, importieren, verlauf); kopf.append(titel, toolbar); seite.append(kopf);
+  if (!state.turniere.length) {
+    seite.append(el('p', 'Noch kein Turnier angelegt. Mit „Neues Turnier“ geht es los, oder ein exportiertes Turnier importieren.', 'verwaltung-leer'));
+    return;
+  }
+  const laufend = state.turniere.filter(turnier => !turnierIstAbgeschlossen(turnier));
+  const abgeschlossen = state.turniere.filter(turnier => turnierIstAbgeschlossen(turnier));
+  const mitPin = state.turniere.filter(turnier => state.leitung.turnierPins?.includes(turnier.id)).length;
+  const zahlen = el('div', undefined, 'verwaltung-zahlen');
+  for (const [wert, text] of [[state.turniere.length, 'Turniere'], [laufend.length, 'laufend'], [abgeschlossen.length, 'abgeschlossen'], [mitPin, 'mit Turnier-PIN']]) {
+    const kachel = el('div', undefined, 'kennzahl'); kachel.append(el('strong', String(wert)), el('span', text)); zahlen.append(kachel);
+  }
+  seite.append(zahlen);
+  // Zuletzt geänderte Turniere zuerst.
+  const sortiert = liste => [...liste].sort((a, b) => (state.letzteAenderungen[b.id] ?? '').localeCompare(state.letzteAenderungen[a.id] ?? '') || b.id - a.id);
+  for (const [ueberschrift, gruppe] of [['Laufende Turniere', laufend], ['Abgeschlossene Turniere', abgeschlossen]]) {
+    if (!gruppe.length) continue;
+    const abschnitt = el('section', undefined, 'verwaltung-abschnitt'), karten = el('div', undefined, 'verwaltung-karten');
+    for (const turnier of sortiert(gruppe)) karten.append(verwaltungsKarte(turnier));
+    abschnitt.append(el('h3', `${ueberschrift} (${gruppe.length})`), karten); seite.append(abschnitt);
+  }
+};
+$('verwaltungOeffnen').addEventListener('click', () => { ansichtWechseln('verwaltung'); void load(); });
 
 const render = () => {
   zugangAktualisieren();
   if (!state.turniere.some(turnier => turnier.id === state.ausgewaehlt)) state.ausgewaehlt = state.turniere[0]?.id ?? null;
-  renderTurnierWechsler();
+  const verwaltung = inVerwaltung();
+  document.body.classList.toggle('ansicht-verwaltung', verwaltung);
+  $('verwaltung').hidden = !verwaltung; details.hidden = verwaltung;
+  if (verwaltung) $('verwaltungOeffnen').setAttribute('aria-current', 'page'); else $('verwaltungOeffnen').removeAttribute('aria-current');
   letztesTurnierMerken(state.ausgewaehlt);
   $('turnierBearbeiten').dataset.gesperrt = String(state.ausgewaehlt === null);
   $('turnierBearbeiten').disabled = state.ausgewaehlt === null;
-  $('turnierLoeschen').dataset.gesperrt = String(state.ausgewaehlt === null);
   $('turnierLink').dataset.gesperrt = String(state.ausgewaehlt === null);
   $('turnierLink').disabled = state.ausgewaehlt === null;
-  $('turnierLoeschen').disabled = state.ausgewaehlt === null;
   const aktuellesTurnier = state.turniere.find(turnier => turnier.id === state.ausgewaehlt);
   const urkundenGesperrt = !darfBearbeiten() || !aktuellesTurnier || !turnierIstAbgeschlossen(aktuellesTurnier);
   $('siegerurkunden').dataset.gesperrt = String(urkundenGesperrt);
   $('siegerurkunden').disabled = urkundenGesperrt;
-  renderDetails();
+  if (verwaltung) renderVerwaltung(); else renderDetails();
 };
 
 // Die automatische Aktualisierung übergeht kurze Verbindungsaussetzer und meldet erst wiederholte Fehlschläge.
@@ -748,7 +749,7 @@ const load = async ({ hintergrund = false } = {}) => {
   setBusy(true);
   if (!hintergrund) meldung('');
   try {
-    const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung;
+    const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung; state.letzteAenderungen = result.letzteAenderungen ?? {};
     if (ersteLadung) { zuletztBearbeitetesWaehlen(result); ersteLadung = false; }
     render();
     if (hintergrund && fehlgeschlageneAktualisierungen >= 3) meldung('');
@@ -827,7 +828,7 @@ form.addEventListener('submit', async event => {
     });
     if (bestehend) state.turniere = state.turniere.map(turnier => turnier.id === result.turnier.id ? result.turnier : turnier);
     else state.turniere.unshift(result.turnier);
-    state.ausgewaehlt = result.turnier.id;
+    state.ausgewaehlt = result.turnier.id; aenderungMerken(result.turnier.id);
     turnierDialog.close();
     turnierFormZuruecksetzen();
     render(); meldung(bestehend ? 'Turnier geändert.' : 'Turnier angelegt.', 'erfolg');
@@ -835,7 +836,7 @@ form.addEventListener('submit', async event => {
   finally { setBusy(false); }
 });
 
-$('neuesTurnier').addEventListener('click', () => { turnierFormZuruecksetzen(); turnierFormAusgangsstand = turnierFormStand(); turnierDialog.showModal(); });
+const neuesTurnierOeffnen = () => { turnierFormZuruecksetzen(); turnierFormAusgangsstand = turnierFormStand(); turnierDialog.showModal(); };
 $('turnierZumMenue').addEventListener('click', async event => {
   event.stopPropagation();
   if (state.busy) return;
@@ -852,10 +853,8 @@ $('turnierBearbeiten').addEventListener('click', () => {
   const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
   if (turnier) turnierFormOeffnen(turnier);
 });
-$('turnierLoeschen').addEventListener('click', async () => {
-  const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
-  if (!turnier) return;
-  if (!await dialogOeffnen({
+const turnierLoeschen = async turnier => {
+  if (state.busy || !await dialogOeffnen({
     titel: 'Turnier löschen?',
     text: 'Turnier und alle Ergebnisse endgültig löschen: ',
     hervorhebung: `„${turnier.titel}“`,
@@ -866,11 +865,11 @@ $('turnierLoeschen').addEventListener('click', async () => {
   try {
     await request(`loeschen&turnier=${turnier.id}`, { method: 'DELETE', body: JSON.stringify({ version: turnier.version }) });
     state.turniere = state.turniere.filter(item => item.id !== turnier.id);
-    state.ausgewaehlt = state.turniere[0]?.id ?? null;
-    render(); meldung('Turnier gelöscht.', 'erfolg');
+    if (state.ausgewaehlt === turnier.id) state.ausgewaehlt = state.turniere[0]?.id ?? null;
+    render(); meldung('Turnier gelöscht. Über „Sicherungen & Verlauf“ lässt es sich wiederherstellen.', 'erfolg');
   } catch (error) { meldung(error.message); }
   finally { setBusy(false); }
-});
+};
 $('turnierAbbrechen').addEventListener('click', () => { turnierDialog.close(); turnierFormZuruecksetzen(); });
 turnierDialog.addEventListener('cancel', () => turnierFormZuruecksetzen());
 
@@ -912,14 +911,15 @@ $('beamerAnsicht').addEventListener('click', () => {
   if (state.ausgewaehlt !== null) url.searchParams.set('turnier', state.ausgewaehlt);
   window.open(url, '_blank', 'noopener');
 });
-$('turnierLink').addEventListener('click', async () => {
-  if (state.ausgewaehlt === null) return;
-  const url = new URL(location.pathname, location.origin); url.searchParams.set('turnier', state.ausgewaehlt);
+const turnierLinkKopieren = async id => {
+  if (id === null) return;
+  const url = new URL(location.pathname, location.origin); url.searchParams.set('turnier', id);
   try {
     await navigator.clipboard.writeText(url.href);
     meldung(`Link kopiert: ${url.href}`, 'erfolg');
   } catch { window.prompt('Link zu diesem Turnier:', url.href); }
-});
+};
+$('turnierLink').addEventListener('click', () => void turnierLinkKopieren(state.ausgewaehlt));
 $('drucken').addEventListener('click', () => { if (darfBearbeiten()) window.print(); });
 $('siegerurkunden').addEventListener('click', () => {
   const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
@@ -938,7 +938,6 @@ $('exportieren').addEventListener('click', () => {
   URL.revokeObjectURL(link.href);
   meldung('Turnier exportiert.', 'erfolg');
 });
-$('importieren').addEventListener('click', () => $('importDatei').click());
 $('importDatei').addEventListener('change', async event => {
   const datei = event.target.files[0];
   event.target.value = '';
@@ -948,9 +947,9 @@ $('importDatei').addEventListener('change', async event => {
     const sicherung = JSON.parse(await datei.text());
     const result = await request('importieren', { method: 'POST', body: JSON.stringify(sicherung) });
     state.turniere.unshift(result.turnier);
-    state.ausgewaehlt = result.turnier.id;
+    state.ausgewaehlt = result.turnier.id; aenderungMerken(result.turnier.id);
     render();
-    meldung('Turnier importiert.', 'erfolg');
+    meldung('Turnier importiert. Bei Bedarf jetzt eine Turnier-PIN festlegen.', 'erfolg');
   } catch (error) { meldung(error instanceof SyntaxError ? 'Die ausgewählte Datei enthält kein gültiges JSON.' : error.message); }
   finally { setBusy(false); }
 });
@@ -970,7 +969,7 @@ $('leitungForm').addEventListener('submit', async event => {
   setBusy(true); inlineFehler('leitungFehler');
   try {
     state.leitung = (await request('anmelden', { method: 'POST', body: JSON.stringify({ pin, turnier: state.ausgewaehlt }) })).leitung;
-    const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung;
+    const result = await request(); state.turniere = result.turniere; state.leitung = result.leitung; state.letzteAenderungen = result.letzteAenderungen ?? {};
     zuletztBearbeitetesWaehlen(result);
     $('leitungDialog').close(); render(); meldung(istSuperadmin() ? 'Als Gesamtverwaltung angemeldet.' : 'Als Turnierleitung angemeldet.', 'erfolg');
   } catch (error) { inlineFehler('leitungFehler', error.message); }
@@ -1011,25 +1010,26 @@ $('pinForm').addEventListener('submit', async event => {
   finally { $('pinForm').reset(); setBusy(false); }
 });
 
+let pinTurnierId = null;
 const turnierPinSpeichern = async pin => {
   if (state.busy) return;
   setBusy(true); inlineFehler('turnierPinFehler');
   try {
-    state.leitung = (await request(`turnier-pin&turnier=${state.ausgewaehlt}`, { method: 'POST', body: JSON.stringify({ pin }) })).leitung;
+    state.leitung = (await request(`turnier-pin&turnier=${pinTurnierId}`, { method: 'POST', body: JSON.stringify({ pin }) })).leitung;
     $('turnierPinDialog').close(); render(); meldung(pin === null ? 'Turnier-PIN entfernt.' : 'Turnier-PIN gespeichert.', 'erfolg');
   } catch (error) { inlineFehler('turnierPinFehler', error.message); }
   finally { $('turnierPinForm').reset(); setBusy(false); }
 };
-$('turnierPinOeffnen').addEventListener('click', () => {
-  const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
+const turnierPinDialogOeffnen = turnier => {
   if (!turnier || !istSuperadmin()) return;
+  pinTurnierId = turnier.id;
   const vorhanden = state.leitung.turnierPins?.includes(turnier.id);
   $('turnierPinHinweis').textContent = vorhanden
     ? `„${turnier.titel}“ hat bereits eine eigene PIN. Eine neue PIN ersetzt sie; angemeldete Geräte der Turnierleitung müssen sich neu anmelden.`
     : `„${turnier.titel}“ hat noch keine eigene PIN und kann nur von der Gesamtverwaltung bearbeitet werden.`;
   $('turnierPinEntfernen').hidden = !vorhanden;
   $('turnierPinForm').reset(); inlineFehler('turnierPinFehler'); $('turnierPinDialog').showModal(); $('turnierPinForm').elements.neuePin.focus();
-});
+};
 $('turnierPinAbbrechen').addEventListener('click', () => $('turnierPinDialog').close());
 $('turnierPinDialog').addEventListener('close', () => $('turnierPinForm').reset());
 $('turnierPinForm').addEventListener('submit', event => {
@@ -1065,7 +1065,7 @@ const sicherungAnsehen = async (eintrag, seite) => {
       try {
         const restored = await request('wiederherstellen', { method: 'POST', body: JSON.stringify({ sicherung: eintrag.id, seite, version: result.aktuelleVersion }) });
         state.turniere = [restored.turnier, ...state.turniere.filter(item => item.id !== restored.turnier.id)];
-        state.ausgewaehlt = restored.turnier.id;
+        state.ausgewaehlt = restored.turnier.id; aenderungMerken(restored.turnier.id);
         $('verlaufDialog').close(); render(); meldung('Turnierstand wiederhergestellt.', 'erfolg');
       } catch (error) { inlineFehler('verlaufFehler', error.message); }
       finally { setBusy(false); }
@@ -1106,7 +1106,7 @@ const renderVerlauf = (limit = 50) => {
   }
 };
 
-$('verlaufOeffnen').addEventListener('click', async () => {
+const verlaufOeffnen = async turnierId => {
   if (state.busy) return;
   $('sicherungsVorschau').hidden = true; inlineFehler('verlaufFehler');
   $('verlaufDialog').showModal(); setBusy(true);
@@ -1120,10 +1120,12 @@ $('verlaufOeffnen').addEventListener('click', async () => {
       const vorhanden = state.turniere.some(turnier => turnier.id === id);
       const option = el('option', `${titel}${vorhanden ? '' : ' (gelöscht)'}`); option.value = id; filter.append(option);
     }
+    filter.value = turnierId !== null && turniere.has(turnierId) ? String(turnierId) : '';
     renderVerlauf();
   } catch (error) { inlineFehler('verlaufFehler', error.message); }
   finally { setBusy(false); }
-});
+};
+$('verlaufOeffnen').addEventListener('click', () => void verlaufOeffnen(state.ausgewaehlt));
 $('verlaufFilter').addEventListener('change', () => { $('sicherungsVorschau').hidden = true; renderVerlauf(); });
 $('verlaufSchliessen').addEventListener('click', () => $('verlaufDialog').close());
 

@@ -79,8 +79,8 @@ Alternativ `npm start`. Anschließend <http://localhost:8001> öffnen. Der lokal
 ### 3. Erstes Turnier anlegen
 
 1. **Anmelden** wählen und die PIN der Gesamtverwaltung eingeben.
-2. **Neues Turnier anlegen** öffnen, Sportart und Modus wählen und die Teilnehmer eintragen.
-3. Bei Bedarf über **Turnier-PIN festlegen** eine eigene PIN für dieses Turnier vergeben.
+2. In der **Gesamtverwaltung** **Neues Turnier** öffnen, Sportart und Modus wählen und die Teilnehmer eintragen.
+3. Bei Bedarf auf der Karte des Turniers über **PIN festlegen** eine eigene PIN für dieses Turnier vergeben.
 4. Ergebnisse im Spielplan erfassen; bei Schach zunächst die Anwesenden auswählen und Paarungen auslosen.
 
 ## Anmeldung und Berechtigungen

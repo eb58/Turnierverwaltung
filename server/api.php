@@ -399,15 +399,15 @@ try {
             // Ohne Turnier-Link sieht man nur die Turniere, für die man angemeldet ist.
             $auswahl = $id !== null ? [$turniere[turnierIndex($turniere, $id)]]
                 : array_values(array_filter($turniere, fn(array $turnier): bool => darfTurnier($leitung, $turnier['id'])));
-            // Das zuletzt geänderte Turnier wird nach dem Anmelden direkt geöffnet.
-            $zuletztBearbeitet = null;
+            // Angemeldete sehen, wann ihre Turniere zuletzt geändert wurden; das jüngste wird nach dem Anmelden geöffnet.
+            $zuletztBearbeitet = null; $letzteAenderungen = [];
             if ($leitung['angemeldet']) {
-                $sichtbar = array_column($auswahl, 'id');
-                for ($i = count($verlauf) - 1; $i >= 0 && $zuletztBearbeitet === null; $i--) {
-                    if (in_array($verlauf[$i]['turnierId'], $sichtbar, true)) $zuletztBearbeitet = $verlauf[$i]['turnierId'];
+                $sichtbar = array_flip(array_column($auswahl, 'id'));
+                foreach ($verlauf as $eintrag) if (isset($sichtbar[$eintrag['turnierId']])) {
+                    $letzteAenderungen[$eintrag['turnierId']] = $eintrag['zeit']; $zuletztBearbeitet = $eintrag['turnierId'];
                 }
             }
-            return ['turniere' => $auswahl, 'leitung' => $leitung, 'zuletztBearbeitet' => $zuletztBearbeitet];
+            return ['turniere' => $auswahl, 'leitung' => $leitung, 'zuletztBearbeitet' => $zuletztBearbeitet, 'letzteAenderungen' => (object) $letzteAenderungen];
         }, $leitung['superadmin']));
     }
     if ($method === 'POST' && $action === 'anlegen') {
