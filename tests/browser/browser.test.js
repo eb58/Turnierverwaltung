@@ -201,11 +201,11 @@ test('Browser: Schach auslosen, Remis korrigieren, Spieltag abschließen und His
     await textSichtbar(page, 'Anwesende Spieler ausgelost.');
     const partien = tag.locator('.spieltag-partie');
     assert.equal(await partien.count(), 2);
-    await mutation(page, 'ergebnis', () => partien.first().getByRole('radio', { name: '½:½', exact: true }).check());
+    await mutation(page, 'ergebnis', () => partien.first().getByRole('radio', { name: '½:½', exact: true }).click());
     await sichtbar(partien.first().getByText('½:½ · Remis', { exact: true }));
-    await mutation(page, 'ergebnis', () => partien.first().getByRole('radio', { name: '1:0', exact: true }).check());
+    await mutation(page, 'ergebnis', () => partien.first().getByRole('radio', { name: '1:0', exact: true }).click());
     await sichtbar(partien.first().getByText(/^1:0 · Sieger:/));
-    await mutation(page, 'ergebnis', () => partien.nth(1).getByRole('radio', { name: '½:½', exact: true }).check());
+    await mutation(page, 'ergebnis', () => partien.nth(1).getByRole('radio', { name: '½:½', exact: true }).click());
     await sichtbar(partien.nth(1).getByText('½:½ · Remis', { exact: true }));
     await tag.getByRole('button', { name: 'Spieltag beenden', exact: true }).click();
     await sichtbar(page.getByRole('dialog', { name: 'Spieltag beenden?' }));

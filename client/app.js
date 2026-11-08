@@ -41,6 +41,22 @@ const istSuperadmin = () => state.leitung.superadmin && !state.beamer;
 // Turnierleitungen dürfen nur ihr eigenes Turnier bearbeiten, die Gesamtverwaltung alle.
 const darfBearbeiten = () => !state.beamer && (state.leitung.superadmin || state.leitung.turniere.includes(state.ausgewaehlt));
 const form = $('turnierForm');
+// Wenige Optionen werden als Radio-Chips statt als Auswahlbox gezeigt; Werte stehen im HTML (data-optionen="wert=Text|wert=Text").
+form.querySelectorAll('fieldset[data-optionen]').forEach(feldgruppe => {
+  const chips = el('div', undefined, 'optionen-chips');
+  feldgruppe.dataset.optionen.split('|').forEach((eintrag, index) => {
+    const [wert, text] = eintrag.split('=');
+    const label = el('label', undefined, 'optionen-chip'), radio = el('input');
+    radio.type = 'radio'; radio.name = feldgruppe.dataset.name; radio.value = wert; radio.defaultChecked = index === 0;
+    label.append(radio, el('span', text)); chips.append(label);
+  });
+  feldgruppe.append(chips);
+});
+// Unbekannte Werte fallen auf die erste Option zurück, statt die vorherige Auswahl stehen zu lassen.
+const optionSetzen = (name, wert) => {
+  const radios = [...form.querySelectorAll(`input[type="radio"][name="${name}"]`)];
+  (radios.find(radio => radio.value === String(wert)) ?? radios[0]).checked = true;
+};
 const paare = $('paare');
 const details = $('details');
 const appDialog = $('appDialog');
@@ -427,21 +443,28 @@ const renderSchachErgebnis = (turnier, spiel, titel, names) => {
   const gespeichert = spiel.status === 'fertig' ? `${spiel.punkteA}:${spiel.punkteB}` : '';
   const gruppe = el('div', undefined, 'ergebnis-chips'); gruppe.setAttribute('role', 'radiogroup');
   gruppe.setAttribute('aria-label', `${titel}: Ergebnis ${names.get(spiel.a)} (Weiß) gegen ${names.get(spiel.b)} (Schwarz)`);
-  const gruppenName = `ergebnis-${spiel.id}-${titel}`.replace(/\s+/g, '_');
-  const radios = [];
+  const chips = [];
+  // Pfeiltasten bewegen nur den Fokus; gespeichert wird erst bei Klick, Enter oder Leertaste.
+  const fokussieren = chip => { chips.forEach(c => { c.tabIndex = c === chip ? 0 : -1; }); chip.focus(); };
   for (const [wert, text] of [['1:0', '1:0'], ['0.5:0.5', '½:½'], ['0:1', '0:1']]) {
-    const label = el('label', undefined, 'ergebnis-chip');
-    const radio = el('input'); radio.type = 'radio'; radio.name = gruppenName; radio.value = wert; radio.checked = wert === gespeichert;
-    label.append(radio, el('span', text)); gruppe.append(label); radios.push(radio);
-    // Speichert direkt bei Auswahl; bei Fehler oder laufender Speicherung zeigt die Gruppe wieder den gespeicherten Stand.
-    radio.addEventListener('change', async () => {
-      const zuruecksetzen = () => radios.forEach(r => { r.checked = r.value === gespeichert; });
-      if (state.busy) { zuruecksetzen(); meldung('Bitte warten, bis das vorige Ergebnis gespeichert ist.'); return; }
-      const [punkteA, punkteB] = radio.value.split(':').map(Number);
+    const chip = el('button', text, 'ergebnis-chip'); chip.type = 'button';
+    chip.setAttribute('role', 'radio'); chip.setAttribute('aria-checked', String(wert === gespeichert));
+    chips.push(chip);
+    chip.addEventListener('click', async () => {
+      if (wert === gespeichert) return;
+      if (state.busy) { meldung('Bitte warten, bis das vorige Ergebnis gespeichert ist.'); return; }
+      const [punkteA, punkteB] = wert.split(':').map(Number);
       await speichern(turnier, spiel, { punkteA, punkteB });
-      if (gruppe.isConnected) zuruecksetzen();
     });
+    chip.addEventListener('keydown', event => {
+      const richtung = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+      if (!richtung) return;
+      event.preventDefault();
+      fokussieren(chips[(chips.indexOf(chip) + richtung + chips.length) % chips.length]);
+    });
+    gruppe.append(chip);
   }
+  chips.forEach((chip, index) => { chip.tabIndex = chip.getAttribute('aria-checked') === 'true' || (!gespeichert && index === 0) ? 0 : -1; });
   ergebnisForm.append(gruppe);
   ergebnisForm.addEventListener('submit', event => event.preventDefault());
   if (spiel.status === 'fertig') {
@@ -780,12 +803,12 @@ const turnierFormZuruecksetzen = () => {
 
 const turnierFormOeffnen = turnier => {
   bearbeitetesTurnierId = turnier.id;
-  form.elements.sportart.value = turnier.sportart ?? 'tischtennis';
-  form.elements.durchgaenge.value = String(turnier.durchgaenge ?? 1);
+  optionSetzen('sportart', turnier.sportart ?? 'tischtennis');
+  optionSetzen('durchgaenge', String(turnier.durchgaenge ?? 1));
   form.elements.titel.value = turnier.titel;
-  form.elements.modus.value = turnier.modus;
-  form.elements.gewinnsaetze.value = String(gewinnsaetze(turnier));
-  form.elements.satzweise.value = turnier.satzweise ? '1' : '0';
+  optionSetzen('modus', turnier.modus);
+  optionSetzen('gewinnsaetze', String(gewinnsaetze(turnier)));
+  optionSetzen('satzweise', turnier.satzweise ? '1' : '0');
   form.elements.anzahlTische.value = turnier.anzahlTische ?? '';
   paare.replaceChildren();
   turnier.teilnehmer.forEach(teilnehmer => paarFeldHinzufuegen(paare, teilnehmer.spieler));
