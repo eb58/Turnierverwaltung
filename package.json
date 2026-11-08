@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prepare": "npm run hooks:install",
+    "hooks:install": "node scripts/install-hooks.js",
     "start": "php -S localhost:8001 -t client server/router.php",
-    "test": "npm run test:syntax && npm run test:unit && npm run test:php && npm run test:api",
+    "test": "npm run test:syntax && npm run test:unit && npm run test:php && npm run test:api && npm run test:browser",
     "test:syntax": "node --check client/app.js && node --check client/turnier-domain.js && node --check client/schach-domain.js && node --check client/schach-spieltag.js && php -l server/api.php && php -l server/schach.php && php -l server/schach-auslosung.php && php -l server/speicher.php && php -l server/leitung.php && php -l server/pin-einrichten.php && php -l server/router.php",
     "test:unit": "node --test tests/unit/*.test.js",
     "test:php": "php tests/php/turnier-test.php",
-    "test:api": "node --test tests/api/*.test.js"
+    "test:api": "node --test tests/api/*.test.js",
+    "test:browser": "node --test tests/browser/*.test.js"
   },
   "devDependencies": {
     "playwright": "^1.49.1"

@@ -37,7 +37,7 @@ Für Schach gibt es außerdem eine Anwesenheitsauswahl und Tagesauslosungen mit 
 - **PHP ab 8.1**, lokal als Kommandozeilenprogramm `php` verfügbar. Der Code verwendet unter anderem `readonly`, `never` und `array_is_list`.
 - **Ein moderner Browser** mit JavaScript, ES-Modulen und Cookies für die Anmeldung.
 - **Schreibrechte im Datenverzeichnis** für den Benutzer, unter dem PHP ausgeführt wird. Standardmäßig ist dies `data/`; das Verzeichnis wird bei Bedarf angelegt.
-- **Für Tests zusätzlich Node.js und npm.** Es werden der integrierte Node-Test-Runner und `fetch` verwendet. Es gibt keine npm-Abhängigkeiten; `npm install` ist nicht erforderlich.
+- **Für Tests zusätzlich Node.js und npm.** Die Browsertests verwenden Playwright und Chromium; die übrigen Tests den integrierten Node-Test-Runner und `fetch`.
 - **Für das Deployment per Skript zusätzlich PowerShell, SSH und SCP.** Auf dem Zielserver wird Apache mit PHP, `mod_rewrite` und aktivierter Verarbeitung der `.htaccess` benötigt.
 
 ## Lokal starten
@@ -214,10 +214,14 @@ Die öffentlichen Adressen sind unabhängig von dieser Aufteilung: Die Oberfläc
 Die vollständige Testsuite unter Windows/PowerShell starten:
 
 ```powershell
+npm.cmd install
+npx.cmd playwright install chromium
 npm.cmd test
 ```
 
 In anderen Shells lautet der Befehl `npm test`. PHP und Node.js müssen im `PATH` verfügbar sein.
+
+`npm install` aktiviert über das `prepare`-Skript den versionierten Pre-Commit-Hook in `.githooks/`. Er führt vor jedem Commit die vollständige Testsuite einschließlich der Browsertests aus. Schlägt eine Prüfung fehl, wird der Commit abgebrochen. Für ein bereits eingerichtetes Projekt lässt sich der Hook auch mit `npm.cmd run hooks:install` aktivieren. Die Tests prüfen den aktuellen Arbeitsstand einschließlich noch nicht gestagter Änderungen.
 
 | Befehl in PowerShell | Prüfung |
 | --- | --- |
@@ -225,8 +229,11 @@ In anderen Shells lautet der Befehl `npm test`. PHP und Node.js müssen im `PATH
 | `npm.cmd run test:unit` | JavaScript-Tests für Tabellen, Wertung, Fortschritt und Platzierungen |
 | `npm.cmd run test:php` | PHP-Tests für Spielpläne, Farben, K.-o.-Fortschreibung, Auslosung und Ergebnisse |
 | `npm.cmd run test:api` | API-Tests für Speicherung, Berechtigungen, PINs, Sicherungen und Spieltage |
+| `npm.cmd run test:browser` | Chromium: Anmeldung/Abmeldung, Tischtennis-Ergebnisse auf Desktop und Mobilgerät sowie Schachspieltag mit Korrektur und Abschluss |
 
-Die API-Tests starten selbst einen lokalen PHP-Testserver auf einem freien Port. Sie verwenden ein temporäres Datenverzeichnis und verändern die regulären Turnierdaten nicht.
+Die Installation von Abhängigkeiten und Chromium ist einmalig erforderlich (erneut nach entsprechenden Updates). Unter Linux kann für die Browser-Systembibliotheken `npx playwright install --with-deps chromium` nötig sein.
+
+API- und Browsertests starten selbst einen lokalen PHP-Testserver auf einem freien Port. Sie verwenden jeweils ein temporäres Datenverzeichnis und verändern die regulären Turnierdaten nicht. Die Browsertests verwenden frische Browsersitzungen und prüfen auch das erneute Laden gespeicherter Ergebnisse und die schreibgeschützte Zuschaueransicht. Bei Fehlern liegen Screenshot und Seiten-HTML unter `test-results/`; der Ordner ist von Git ausgeschlossen. Browserprüfungen laufen ohne sichtbares Fenster.
 
 ## Bestehende Schachsaison 2026/27 übernehmen
 

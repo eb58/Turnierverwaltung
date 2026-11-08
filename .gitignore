@@ -7,3 +7,4 @@ data/*.alt*
 data/sitzungen/
 
 node_modules/
+test-results/
