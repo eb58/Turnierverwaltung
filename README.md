@@ -227,11 +227,14 @@ In anderen Shells lautet der Befehl `npm test`. PHP und Node.js müssen im `PATH
 | --- | --- |
 | `npm.cmd run test:syntax` | JavaScript- und PHP-Syntax |
 | `npm.cmd run test:unit` | JavaScript-Tests für Tabellen, Wertung, Fortschritt und Platzierungen |
+| `npm.cmd run test:coverage` | Zeilen-, Verzweigungs- und Funktionsabdeckung der JavaScript-Fachmodule durch die Unit-Tests |
 | `npm.cmd run test:php` | PHP-Tests für Spielpläne, Farben, K.-o.-Fortschreibung, Auslosung und Ergebnisse |
 | `npm.cmd run test:api` | API-Tests für Speicherung, Berechtigungen, PINs, Sicherungen und Spieltage |
 | `npm.cmd run test:browser` | Chromium: Anmeldung/Abmeldung, Tischtennis-Ergebnisse auf Desktop und Mobilgerät sowie Schachspieltag mit Korrektur und Abschluss |
 
 Die Installation von Abhängigkeiten und Chromium ist einmalig erforderlich (erneut nach entsprechenden Updates). Unter Linux kann für die Browser-Systembibliotheken `npx playwright install --with-deps chromium` nötig sein.
+
+Die Coverage-Ausgabe bezieht sich auf die von den Unit-Tests geladenen Module (`turnier-domain.js` und `schach-domain.js`) und enthält auch die Testdateien. Sie ist keine Gesamtabdeckung der Anwendung; Browseroberfläche und PHP werden damit nicht gemessen. Die Unit-Tests prüfen unter anderem leere und unvollständige Turniere, vollständige und unvollständige direkte Vergleiche, historische Schachergebnisse und unveränderte Eingangsdaten bei wiederholten Auswertungen.
 
 API- und Browsertests starten selbst einen lokalen PHP-Testserver auf einem freien Port. Sie verwenden jeweils ein temporäres Datenverzeichnis und verändern die regulären Turnierdaten nicht. Die Browsertests verwenden frische Browsersitzungen und prüfen auch das erneute Laden gespeicherter Ergebnisse und die schreibgeschützte Zuschaueransicht. Bei Fehlern liegen Screenshot und Seiten-HTML unter `test-results/`; der Ordner ist von Git ausgeschlossen. Browserprüfungen laufen ohne sichtbares Fenster.
 

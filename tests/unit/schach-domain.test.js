@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { schachErgebnisText, schachLetzterSpieltag, schachNachtragbar, schachPunkte, schachKreuztabelle } from '../../client/schach-domain.js';
+// Dieselbe Modul-URL wie in turnier-domain.js, damit Coverage das Modul nur einmal erfasst.
+import { schachErgebnisText, schachLetzterSpieltag, schachNachtragbar, schachPunkte, schachKreuztabelle } from '../../client/schach-domain.js?v=7';
 import { turnierFortschritt, turnierPlatzierungen, turnierTabelle } from '../../client/turnier-domain.js';
 
 const teilnehmer = [1, 2, 3, 4].map(id => ({ id, name: `Spieler ${id}`, spieler: [{ name: `Spieler ${id}` }] }));
@@ -110,4 +111,64 @@ test('Offene Partien beendeter Spieltage sind nur nachtragbar, solange sie nicht
   t.runden[0][1] = partie('p2', 3, 4, 'fertig');
   assert.deepEqual(schachNachtragbar(t, tag1), []);
   assert.deepEqual(schachNachtragbar({ ...t, spieltage: [] }, { datum: '2025-01-01', paarungen: ['1-2'] }), []);
+});
+
+test('Leeres Schachturnier und fehlende Spieltagshistorie liefern leere Auswertungen', () => {
+  const leer = turnier([], []);
+  assert.deepEqual(turnierTabelle(leer), []);
+  assert.deepEqual(schachKreuztabelle(leer), []);
+  assert.deepEqual(turnierFortschritt(leer), { fertig: 0, gesamt: 0 });
+  assert.deepEqual(turnierPlatzierungen(leer), []);
+  assert.deepEqual([...schachLetzterSpieltag(leer)], []);
+  assert.deepEqual(schachNachtragbar(leer, { gruppen: [] }), []);
+});
+
+test('Kreuztabelle unterscheidet noch nicht angesetzte und angesetzte offene Partien', () => {
+  const t = turnier([[{ a: 1, b: 2, status: 'offen', punkteA: null, punkteB: null }]], teilnehmer.slice(0, 3));
+  const matrix = schachKreuztabelle(t);
+  assert.deepEqual(matrix.map(z => z.felder[z.id - 1]), [null, null, null]);
+  assert.deepEqual(matrix[0].felder[1], { runde: 1, farbe: 'Weiß', punkte: null });
+  assert.deepEqual(matrix[1].felder[0], { runde: 1, farbe: 'Schwarz', punkte: null });
+  assert.equal(matrix[0].felder[2], undefined);
+  assert.equal(matrix[2].felder[0], undefined);
+  assert.deepEqual(turnierTabelle(t).map(z => [z.spiele, z.punkte, z.rang]), [[0, 0, 1], [0, 0, 1], [0, 0, 1]]);
+  assert.deepEqual(turnierPlatzierungen(t), []);
+});
+
+test('Weniger Partien entscheiden erst nach gleichen Punkten und gleichem direktem Vergleich', () => {
+  const tabelle = turnierTabelle(turnier([[spiel(1, 3, 1, 0), spiel(2, 3, .5, .5), spiel(2, 4, .5, .5)]]));
+  assert.deepEqual(tabelle.slice(0, 2).map(z => [z.id, z.punkte, z.direkt, z.spiele, z.rang]), [
+    [1, 1, 0, 1, 1], [2, 1, 0, 2, 2],
+  ]);
+});
+
+test('Historischer direkter Vergleich entscheidet auch zusammen mit neuen Ergebnissen', () => {
+  const t = { ...turnier([[spiel(2, 3, 1, 0), spiel(1, 3, 0, 1)]], teilnehmer.slice(0, 3)),
+    altErgebnisse: [{ a: 1, b: 2, punkteA: 1.5, punkteB: .5 }] };
+  assert.deepEqual(turnierTabelle(t).map(z => [z.id, z.punkte, z.direkt, z.spiele, z.rang]), [
+    [1, 1.5, 1.5, 3, 1], [2, 1.5, .5, 3, 2], [3, 1, 0, 2, 3],
+  ]);
+  const matrix = schachKreuztabelle(t);
+  assert.deepEqual(matrix[0].felder[1], { gesamt: 1.5 });
+  assert.deepEqual(matrix[1].felder[0], { gesamt: .5 });
+});
+
+test('Alphabetische Sortierung und ID machen aus gleicher Schachwertung keine verschiedenen Ränge', () => {
+  const personen = [{ id: 3, name: 'Zora' }, { id: 2, name: 'Anna' }, { id: 1, name: 'Anna' }];
+  assert.deepEqual(turnierTabelle(turnier([], personen)).map(z => [z.id, z.rang]), [[1, 1], [2, 1], [3, 1]]);
+});
+
+test('Schachauswertungen verändern weder gespeicherte Partien noch historische Summen', () => {
+  const t = { ...turnier([[spiel(1, 3, .5, .5)]]),
+    altErgebnisse: [{ a: 1, b: 2, punkteA: 1.5, punkteB: .5 }],
+    spieltage: [{ id: 'tag1', gruppen: [{ spiele: ['p1'] }] }] };
+  t.runden[0][0].id = 'p1';
+  const vorher = structuredClone(t);
+  const ersteTabelle = turnierTabelle(t), ersteMatrix = schachKreuztabelle(t);
+  turnierFortschritt(t);
+  turnierPlatzierungen(t);
+  schachNachtragbar(t, t.spieltage[0]);
+  assert.deepEqual(turnierTabelle(t), ersteTabelle);
+  assert.deepEqual(schachKreuztabelle(t), ersteMatrix);
+  assert.deepEqual(t, vorher);
 });
