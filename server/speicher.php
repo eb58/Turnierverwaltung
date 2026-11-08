@@ -130,7 +130,7 @@ function aenderungsBeschreibung(?array $vorher, ?array $nachher, string $aktion)
     };
 }
 
-// In Dateien steht nur, was sich nicht ableiten lässt: bei Einzelspielern der Name, bei Doppeln die Spieler.
+// In Dateien stehen Teilnehmernamen ohne Duplikate und nur nichtleere Satzlisten.
 function turnierSpeicherform(?array $turnier): ?array
 {
     if ($turnier === null || !is_array($turnier['teilnehmer'] ?? null)) return $turnier;
@@ -140,6 +140,10 @@ function turnierSpeicherform(?array $turnier): ?array
         if (($teilnehmer['name'] ?? null) === implode(' / ', array_column($teilnehmer['spieler'], 'name'))) unset($teilnehmer['name']);
         return $teilnehmer;
     }, $turnier['teilnehmer']);
+    foreach ($turnier['runden'] as &$runde) foreach ($runde as &$spiel) {
+        if (($spiel['saetze'] ?? null) === []) unset($spiel['saetze']);
+    }
+    unset($runde, $spiel);
     return $turnier;
 }
 
@@ -152,6 +156,10 @@ function turnierAusSpeicherform(?array $turnier): ?array
         if (!isset($teilnehmer['name']) && is_array($teilnehmer['spieler'] ?? null)) $teilnehmer['name'] = implode(' / ', array_column($teilnehmer['spieler'], 'name'));
         return ['id' => $teilnehmer['id'] ?? null, 'name' => $teilnehmer['name'] ?? null, 'spieler' => $teilnehmer['spieler'] ?? null] + $teilnehmer;
     }, $turnier['teilnehmer']);
+    foreach ($turnier['runden'] as &$runde) foreach ($runde as &$spiel) {
+        $spiel += ['saetze' => []];
+    }
+    unset($runde, $spiel);
     return $turnier;
 }
 

@@ -170,6 +170,8 @@ Unter **Sicherungen & Verlauf** können berechtigte Nutzer frühere Stände anse
 
 **Exportieren** sichert ein einzelnes Turnier als JSON. **Importieren** legt daraus ein zusätzliches Turnier an und ist der Gesamtverwaltung vorbehalten. PINs und Anmeldesitzungen sind nicht Bestandteil eines Turnierexports oder der automatischen Turniersicherungen. Ein einzelnes Turnier samt Verlauf lässt sich auch kopieren, indem man seinen Ordner unter `data/turniere/` mitnimmt. Für einen vollständigen Umzug oder eine zusätzliche Gesamtsicherung das gesamte `data/`-Verzeichnis kopieren.
 
+In gespeicherten Turnierdateien und automatischen Sicherungen wird `saetze` nur bei nichtleeren Satzlisten geschrieben. Beim Laden werden fehlende Satzlisten als `[]` ergänzt; ältere Dateien mit expliziten leeren Listen bleiben lesbar. Bestehende Turnierdateien werden beim nächsten Speichern kompakter.
+
 Das Datenverzeichnis ist nicht versioniert. Apache sperrt den direkten Zugriff über die mitgelieferte `.htaccess`; lokal übernimmt dies `server/router.php`. Bei einem anderen Webserver muss eine entsprechende Zugriffssperre eingerichtet werden.
 
 Die Umgebungsvariable `TURNIER_DATA_FILE` legt fest, in welchem Verzeichnis die Daten liegen (das Verzeichnis dieses Dateipfads; die Datei selbst existiert nur noch als alte Sammeldatei). PIN-Konfiguration, Sitzungen und der Ordner `turniere/` werden dort angelegt. Die API-Tests nutzen dies für ein isoliertes temporäres Datenverzeichnis.

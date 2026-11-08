@@ -400,6 +400,34 @@ test('Echte Saison 2026/27 erhält 24 historische Partien ohne erfundene Einzelr
     }
 });
 
+test('Kompakte Speicherung lässt leere Satzlisten weg und erhält den Turnierinhalt', function (): void {
+    foreach ([neuesTurnier(payload(5), 1), neuesTurnier(payload(5, 'ko'), 2), neuesTurnier(schachPayload(3), 3)] as $turnier) {
+        $original = $turnier;
+        $kompakt = turnierSpeicherform($turnier);
+        foreach ($kompakt['runden'] as $runde) foreach ($runde as $spiel) {
+            wahr(!array_key_exists('saetze', $spiel), 'Leere Satzliste darf nicht gespeichert werden.');
+        }
+        $geladen = turnierAusSpeicherform(json_decode(jsonKompakt($kompakt), true, 512, JSON_THROW_ON_ERROR));
+        wahr($turnier == $geladen, 'Kompaktes JSON muss denselben Turnierinhalt ergeben.');
+        gleich($original, $turnier);
+        gleich($turnier, turnierAusSpeicherform($turnier));
+        gleich($kompakt, turnierSpeicherform($geladen));
+    }
+    gleich(null, turnierSpeicherform(null));
+    gleich(null, turnierAusSpeicherform(null));
+});
+
+test('Kompakte Speicherung erhält erfasste Satzpunkte und lässt sich wieder importieren', function (): void {
+    $turnier = neuesTurnier(payload(5), 1);
+    $saetze = [['a' => 11, 'b' => 9], ['a' => 8, 'b' => 11], ['a' => 12, 'b' => 10]];
+    $turnier = turnierErgebnis($turnier, 'r1-s1', ['saetze' => $saetze]);
+    $kompakt = turnierSpeicherform($turnier);
+    gleich($saetze, $kompakt['runden'][0][0]['saetze']);
+    wahr(!array_key_exists('saetze', $kompakt['runden'][0][1]), 'Offenes Spiel braucht keine Satzliste.');
+    wahr($turnier == turnierAusSpeicherform($kompakt), 'Satzpunkte müssen das Laden unverändert überstehen.');
+    gleich($turnier, importiertesTurnier(['format' => 'turnierverwaltung-backup', 'turnier' => $kompakt], 1));
+});
+
 $fehler = 0;
 foreach ($tests as $name => $test) {
     try { $test(); echo "OK  $name\n"; }

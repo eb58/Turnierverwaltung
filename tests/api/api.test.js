@@ -406,7 +406,8 @@ test('Die frühere Sammeldatei wird verlustfrei in Turnierordner übernommen, ei
   assert.equal((await anfrage(`umbenennen&turnier=${tischtennis.id}`, 'PUT', { version: tischtennis.version, titel: 'Nach Datenübernahme' })).status, 200);
   const ordner = id => join(tempOrdner, 'turniere', String(id));
   const gespeichertSchach = JSON.parse(await readFile(join(ordner(schach.id), 'turnier.json'), 'utf8'));
-  assert.deepEqual(gespeichertSchach.runden, schach.runden);
+  assert.ok(gespeichertSchach.runden.flat().every(spiel => !Object.hasOwn(spiel, 'saetze')), 'Schachpartien werden ohne leere Satzlisten gespeichert.');
+  assert.deepEqual(gespeichertSchach.runden.map(runde => runde.map(spiel => ({ ...spiel, saetze: spiel.saetze ?? [] }))), schach.runden);
   assert.deepEqual(Object.keys(gespeichertSchach.teilnehmer[0]).sort(), ['id', 'name'], 'Einzelspieler werden ohne redundante Spielerliste gespeichert.');
   const gespeichertTischtennis = JSON.parse(await readFile(join(ordner(tischtennis.id), 'turnier.json'), 'utf8'));
   assert.ok(gespeichertTischtennis.teilnehmer.every(paar => paar.spieler.length === 2 && !('name' in paar)));
@@ -658,4 +659,36 @@ test('Turnierleitung kann die Paarungen eines Spieltags selbst festlegen', async
   const gespielt = await t2.auslosen('2026-11-08', [x, y], [[x, y]]);
   assert.equal(gespielt.status, 400);
   assert.match(gespielt.payload.error, /keine offene Partie mehr/);
+});
+
+test('Turnierdateien und Sicherungen sparen leere Satzlisten, API und Wiederherstellung ergänzen sie', async () => {
+  const teilnehmer = Array.from({ length: 5 }, (_, i) => ({ spieler: [{ name: `Kompakt A${i}` }, { name: `Kompakt B${i}` }] }));
+  const angelegt = await anfrage('anlegen', 'POST', { titel: 'Kompakte Satzlisten', modus: 'jeder-gegen-jeden', teilnehmer });
+  assert.equal(angelegt.status, 201);
+  const original = angelegt.payload.turnier, id = original.id;
+  const pfad = join(tempOrdner, 'turniere', String(id));
+  const roh = JSON.parse(await readFile(join(pfad, 'turnier.json'), 'utf8'));
+  assert.ok(roh.runden.flat().every(spiel => !Object.hasOwn(spiel, 'saetze')));
+  const geladen = await anfrage();
+  assert.equal(geladen.status, 200);
+  assert.deepEqual(geladen.payload.turniere.find(t => t.id === id), original);
+
+  const saetze = [{ a: 11, b: 9 }, { a: 8, b: 11 }, { a: 12, b: 10 }];
+  const ergebnis = await anfrage(`ergebnis&turnier=${id}&spiel=r1-s1`, 'PUT', { version: original.version, saetze });
+  assert.equal(ergebnis.status, 200);
+  const nachher = JSON.parse(await readFile(join(pfad, 'turnier.json'), 'utf8'));
+  assert.deepEqual(nachher.runden[0][0].saetze, saetze);
+  assert.ok(!Object.hasOwn(nachher.runden[0][1], 'saetze'));
+  const verlauf = JSON.parse(await readFile(join(pfad, 'verlauf.json'), 'utf8'));
+  const sicherung = JSON.parse(await readFile(join(pfad, 'sicherungen', `${verlauf.at(-1).id}.json`), 'utf8'));
+  assert.deepEqual(sicherung.nachher.runden[0][0].saetze, saetze);
+  assert.ok(!Object.hasOwn(sicherung.nachher.runden[0][1], 'saetze'));
+  const vorschau = await anfrage(`stand&sicherung=${verlauf.at(-1).id}&seite=vorher`);
+  assert.equal(vorschau.status, 200);
+  assert.deepEqual(vorschau.payload.turnier, original);
+  const restored = await anfrage('wiederherstellen', 'POST', { sicherung: verlauf.at(-1).id, seite: 'vorher', version: ergebnis.payload.turnier.version });
+  assert.equal(restored.status, 200);
+  assert.ok(restored.payload.turnier.runden.flat().every(spiel => Array.isArray(spiel.saetze) && spiel.saetze.length === 0));
+  const erneut = JSON.parse(await readFile(join(pfad, 'turnier.json'), 'utf8'));
+  assert.ok(erneut.runden.flat().every(spiel => !Object.hasOwn(spiel, 'saetze')));
 });
