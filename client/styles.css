@@ -134,7 +134,13 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
 .paarung { margin-bottom: .45rem; font-weight: 750; overflow-wrap: anywhere; }
 .ergebnis { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
 .ergebnis > input { width: 74px; }
-.ergebnis > select { flex: 1; min-width: 150px; width: auto; }
+.ergebnis-chips { display: flex; flex-wrap: wrap; gap: .4rem; flex: 1; }
+.ergebnis-chip, .optionen-chip { position: relative; cursor: pointer; }
+.ergebnis-chip input, .optionen-chip input { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; opacity: 0; }
+.ergebnis-chip span, .optionen-chip span { display: flex; align-items: center; justify-content: center; min-width: 3.5rem; min-height: 44px; padding: .4rem .9rem; border: 2px solid var(--border); border-radius: 999px; background: white; font-weight: 650; }
+.ergebnis-chip input:checked + span, .optionen-chip input:checked + span { background: var(--accent); color: white; border-color: var(--accent); }
+.ergebnis-chip input:focus-visible + span, .optionen-chip input:focus-visible + span { outline: 3px solid var(--accent-dark); outline-offset: 3px; }
+.ergebnis-chip input:disabled + span, .optionen-chip input:disabled + span { opacity: .65; cursor: default; }
 .ergebnis-info { margin: .65rem 0 0; }
 .satz { display: flex; align-items: center; gap: .4rem; width: 100%; }
 .satz span { min-width: 54px; }
@@ -307,7 +313,8 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
   .vergangener-spieltag tr { display: block; padding: .45rem 0; border-bottom: 1px solid var(--border); }
   .vergangener-spieltag td { display: block; padding: .2rem 0; border: 0; white-space: normal; }
   .vergangener-spieltag .ergebnis { flex-wrap: nowrap; }
-  .vergangener-spieltag .ergebnis > select { min-width: 0; }
+  .vergangener-spieltag .ergebnis-chips { flex-wrap: nowrap; }
+  .vergangener-spieltag .ergebnis-chip span { min-width: 0; padding: .4rem .6rem; }
   .rangtabelle { min-width: 0; font-size: .85rem; }
   .rangtabelle th, .rangtabelle td { padding: .4rem .35rem; }
   .rangtabelle thead th { font-size: .66rem; letter-spacing: 0; }
@@ -336,3 +343,9 @@ th, td { padding: .55rem; text-align: left; border-bottom: 1px solid var(--borde
   .kreuztabelle { break-inside: avoid; }
   .rangtabelle, .kreuztabelle table { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
+
+.optionen { margin: 0; padding: 0; border: 0; min-width: 0; }
+.optionen legend { padding: 0; margin-bottom: .35rem; font-weight: 650; }
+.optionen-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.optionen-chip span { text-align: center; }
+.optionen[hidden] { display: none; }

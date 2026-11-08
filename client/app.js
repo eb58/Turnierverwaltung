@@ -47,7 +47,7 @@ const appDialog = $('appDialog');
 const turnierDialog = $('turnierDialog');
 let bearbeitetesTurnierId = null;
 let turnierFormAusgangsstand = '';
-const turnierFormStand = () => JSON.stringify([...form.querySelectorAll('input, select')].map(feld => [feld.name, feld.value]));
+const turnierFormStand = () => JSON.stringify([...form.querySelectorAll('input, select')].filter(feld => feld.type !== 'radio' || feld.checked).map(feld => [feld.name, feld.value]));
 let dialogResolve;
 
 const dialogBeenden = wert => {
@@ -228,8 +228,10 @@ const turnierFormAnpassen = () => {
   form.dataset.sportart = form.elements.sportart.value;
   if (schach) form.elements.modus.value = 'jeder-gegen-jeden';
   for (const [name, gesperrt] of [['sportart', begonnen], ['modus', begonnen || schach], ['durchgaenge', begonnen || !schach], ['gewinnsaetze', begonnen || schach], ['satzweise', schach]]) {
-    form.elements[name].dataset.gesperrt = String(gesperrt);
-    form.elements[name].disabled = state.busy || gesperrt;
+    for (const feld of form.querySelectorAll(`input[name="${name}"]`)) {
+      feld.dataset.gesperrt = String(gesperrt);
+      feld.disabled = state.busy || gesperrt;
+    }
   }
   $('spielwertungFeld').hidden = schach;
   $('erfassungsartFeld').hidden = schach;
@@ -422,23 +424,26 @@ const schachErgebnisInfo = (spiel, names) => spiel.altErgebnis ? schachErgebnisT
 
 const renderSchachErgebnis = (turnier, spiel, titel, names) => {
   const ergebnisForm = el('form', undefined, 'ergebnis');
-  const auswahl = el('select'); auswahl.name = 'ergebnis'; auswahl.required = true;
-  auswahl.setAttribute('aria-label', `${titel}: Ergebnis ${names.get(spiel.a)} (Weiß) gegen ${names.get(spiel.b)} (Schwarz)`);
-  for (const [wert, text] of [['', 'Ergebnis wählen …'], ['1:0', '1:0'], ['0.5:0.5', '½:½'], ['0:1', '0:1']]) {
-    const option = el('option', text); option.value = wert; auswahl.append(option);
-  }
   const gespeichert = spiel.status === 'fertig' ? `${spiel.punkteA}:${spiel.punkteB}` : '';
-  auswahl.value = gespeichert;
-  ergebnisForm.append(auswahl);
+  const gruppe = el('div', undefined, 'ergebnis-chips'); gruppe.setAttribute('role', 'radiogroup');
+  gruppe.setAttribute('aria-label', `${titel}: Ergebnis ${names.get(spiel.a)} (Weiß) gegen ${names.get(spiel.b)} (Schwarz)`);
+  const gruppenName = `ergebnis-${spiel.id}-${titel}`.replace(/\s+/g, '_');
+  const radios = [];
+  for (const [wert, text] of [['1:0', '1:0'], ['0.5:0.5', '½:½'], ['0:1', '0:1']]) {
+    const label = el('label', undefined, 'ergebnis-chip');
+    const radio = el('input'); radio.type = 'radio'; radio.name = gruppenName; radio.value = wert; radio.checked = wert === gespeichert;
+    label.append(radio, el('span', text)); gruppe.append(label); radios.push(radio);
+    // Speichert direkt bei Auswahl; bei Fehler oder laufender Speicherung zeigt die Gruppe wieder den gespeicherten Stand.
+    radio.addEventListener('change', async () => {
+      const zuruecksetzen = () => radios.forEach(r => { r.checked = r.value === gespeichert; });
+      if (state.busy) { zuruecksetzen(); meldung('Bitte warten, bis das vorige Ergebnis gespeichert ist.'); return; }
+      const [punkteA, punkteB] = radio.value.split(':').map(Number);
+      await speichern(turnier, spiel, { punkteA, punkteB });
+      if (gruppe.isConnected) zuruecksetzen();
+    });
+  }
+  ergebnisForm.append(gruppe);
   ergebnisForm.addEventListener('submit', event => event.preventDefault());
-  // Speichert direkt bei Auswahl; bei Fehler oder laufender Speicherung zeigt die Auswahl wieder den gespeicherten Stand.
-  auswahl.addEventListener('change', async () => {
-    if (!auswahl.value) { auswahl.value = gespeichert; return; }
-    if (state.busy) { auswahl.value = gespeichert; meldung('Bitte warten, bis das vorige Ergebnis gespeichert ist.'); return; }
-    const [punkteA, punkteB] = auswahl.value.split(':').map(Number);
-    await speichern(turnier, spiel, { punkteA, punkteB });
-    if (auswahl.isConnected) auswahl.value = gespeichert;
-  });
   if (spiel.status === 'fertig') {
     const loeschen = el('button', undefined, 'small secondary icon-button'); loeschen.type = 'button';
     loeschen.title = 'Ergebnis löschen'; loeschen.setAttribute('aria-label', `${titel}: Ergebnis ${names.get(spiel.a)} gegen ${names.get(spiel.b)} löschen`);
@@ -888,7 +893,7 @@ $('fantasiePaar').addEventListener('click', () => {
   meldung(formularIstSchach() ? 'Fantasiespieler eingefügt.' : 'Fantasiepaar eingefügt.', 'erfolg');
 });
 
-form.elements.sportart.addEventListener('change', () => {
+form.querySelectorAll('input[name="sportart"]').forEach(radio => radio.addEventListener('change', () => {
   const namen = [...paare.querySelectorAll('input')].map(input => input.value.trim()).filter(Boolean);
   if (formularIstSchach() && namen.length > 32) {
     form.elements.sportart.value = form.dataset.sportart;
@@ -900,7 +905,7 @@ form.elements.sportart.addEventListener('change', () => {
   const proTeilnehmer = formularIstSchach() ? 1 : 2;
   const anzahl = namen.length ? Math.max(teilnehmerMinimum(), Math.ceil(namen.length / proTeilnehmer)) : (formularIstSchach() ? 10 : 8);
   for (let i = 0; i < anzahl; i++) paarFeldHinzufuegen(paare, Array.from({ length: proTeilnehmer }, (_, j) => ({ name: namen[i * proTeilnehmer + j] ?? '' })));
-});
+}));
 
 form.elements.titel.addEventListener('input', aktualisiereFantasiePaarSichtbarkeit);
 
