@@ -88,6 +88,8 @@ const dialogOeffnen = ({ titel, text, hervorhebung = null, eingabe = null, besta
 });
 
 $('dialogAbbrechen').addEventListener('click', () => dialogBeenden(null));
+// Fehlermeldungen bleiben stehen; ein Klick blendet sie aus, falls sie etwas im Dialog verdecken.
+$('meldung').addEventListener('click', () => meldung(''));
 $('dialogForm').addEventListener('submit', event => {
   event.preventDefault();
   const mitEingabe = !$('dialogEingabeWrap').hidden;
@@ -98,6 +100,9 @@ appDialog.addEventListener('cancel', event => { event.preventDefault(); dialogBe
 let meldungsTimer;
 const meldung = (text, typ = 'fehler') => {
   clearTimeout(meldungsTimer);
+  // Ein modaler Dialog liegt über der ganzen Seite; die Meldung muss daher im obersten offenen Dialog stehen, um sichtbar zu sein.
+  const ziel = [...document.querySelectorAll('dialog[open]')].at(-1) ?? document.querySelector('main.app');
+  if ($('meldung').parentElement !== ziel) ziel.prepend($('meldung'));
   $('meldung').textContent = text;
   $('meldung').className = `meldung${typ === 'erfolg' ? ' erfolg' : ''}`;
   $('meldung').hidden = !text;
@@ -147,6 +152,11 @@ const request = async (action = '', options = {}) => {
       turnierDialog.close(); $('verlaufDialog').close(); $('pinDialog').close(); $('turnierPinDialog').close();
       render();
       meldung(payload.error || 'Bitte erneut anmelden.');
+    }
+    if (response.status === 409 && action !== 'wiederherstellen') {
+      // Ein anderes Gerät hat das Turnier geändert: Erst nach Abschluss der laufenden Aktion den aktuellen Stand holen.
+      setTimeout(() => void load({ hintergrund: true }), 0);
+      throw new Error('Das Turnier wurde inzwischen auf einem anderen Gerät geändert. Der aktuelle Stand wird geladen – bitte die Eingabe prüfen und gegebenenfalls wiederholen.');
     }
     throw new Error(payload.error || `HTTP ${response.status}`);
   }

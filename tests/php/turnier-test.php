@@ -76,6 +76,18 @@ test('Ungespielte alte K.-o.-Turniere werden umgestellt, begonnene bleiben erhal
     gleich(8, count($turniere[1]['runden'][0]));
 });
 
+test('Ein nicht umstellbares Altturnier blockiert die übrigen Turniere nicht', function (): void {
+    $alt = payload(9, 'ko'); $alt['koSchema'] = 'klassisch';
+    $ungueltig = neuesTurnier($alt, 1);
+    // Nach heutigen Regeln zu wenige Paare, etwa aus einer früheren Programmversion.
+    $ungueltig['teilnehmer'] = array_slice($ungueltig['teilnehmer'], 0, 3);
+    $turniere = [$ungueltig, neuesTurnier($alt, 2)];
+    $log = ini_set('error_log', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null');
+    try { ungespielteKoTurniereUmstellen($turniere); } finally { ini_set('error_log', (string) $log); }
+    gleich($ungueltig, $turniere[0], 'Ungültiges Altturnier bleibt unverändert');
+    gleich('kompakt', $turniere[1]['koSchema']);
+});
+
 test('Korrektur eines K.-o.-Siegers setzt nur betroffene Folgespiele zurück', function (): void {
     $turnier = neuesTurnier(payload(8, 'ko'), 1);
     foreach (array_keys($turnier['runden']) as $r) foreach (array_keys($turnier['runden'][$r]) as $s) {

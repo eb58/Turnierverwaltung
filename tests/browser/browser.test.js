@@ -191,6 +191,73 @@ for (const mobile of [false, true]) {
     }));
 }
 
+// Ein zweites, unabhängig angemeldetes Gerät, das direkt mit der API spricht.
+const zweitesGeraet = async () => {
+  let cookie = '', csrf = '';
+  const api = async (action, method = 'GET', body) => {
+    const response = await fetch(`${basisUrl}/api.php${action ? `?action=${action}` : ''}`, {
+      method, headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf, Cookie: cookie },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const gesetzt = response.headers.getSetCookie().map(zeile => zeile.split(';')[0]).at(-1);
+    if (gesetzt) cookie = gesetzt;
+    const payload = await response.json();
+    if (payload.leitung?.csrf) csrf = payload.leitung.csrf;
+    assert.ok(response.ok, `${action}: ${response.status} ${JSON.stringify(payload)}`);
+    return payload;
+  };
+  await api('leitung');
+  await api('anmelden', 'POST', { pin });
+  return api;
+};
+
+for (const mobile of [false, true]) {
+  const name = mobile ? 'mobil' : 'desktop';
+  test(`Browser ${name}: Fehlermeldung im Turnierdialog ist sichtbar und nicht verdeckt`, { timeout: 60000 }, () =>
+    imBrowser(`dialog-meldung-${name}`, mobile, async page => {
+      await anmelden(page);
+      await page.locator('#verwaltungOeffnen').click();
+      await page.getByRole('button', { name: 'Neues Turnier', exact: true }).click();
+      const dialog = page.locator('#turnierDialog');
+      await dialog.getByLabel('Turniername', { exact: true }).fill('Doppelte Namen');
+      const inputs = dialog.locator('#paare input');
+      for (let i = 0; i < await inputs.count(); i++) await inputs.nth(i).fill('Gleicher Name');
+      await page.locator('#turnierSpeichern').click();
+      const meldung = dialog.locator('#meldung');
+      await sichtbar(meldung);
+      assert.match(await meldung.innerText(), /nur einmal vorkommen/);
+      // Das oberste Element an der Position der Meldung ist die Meldung selbst, nicht Dialog oder Hintergrund.
+      assert.ok(await meldung.evaluate(node => {
+        const box = node.getBoundingClientRect();
+        return node.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+      }), 'Meldung liegt sichtbar über dem Dialog');
+      await meldung.click();
+      await meldung.waitFor({ state: 'hidden' });
+      await page.locator('#turnierAbbrechen').click();
+      await dialog.waitFor({ state: 'hidden' });
+    }));
+}
+
+test('Browser: Versionskonflikt lädt automatisch den aktuellen Stand', { timeout: 60000 }, () =>
+  imBrowser('konflikt', false, async page => {
+    await anmelden(page);
+    const turnier = await anlegen(page, 'tischtennis', 5, 'Browser Konflikt');
+    const anderes = await zweitesGeraet();
+    await anderes(`umbenennen&turnier=${turnier.id}`, 'PUT', { version: turnier.version, titel: 'Browser Konflikt geändert' });
+    const karte = page.locator('.runde').first().locator('.spiel').first();
+    await karte.locator('[name="punkteA"]').fill('2'); await karte.locator('[name="punkteB"]').fill('1');
+    const [konflikt] = await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).searchParams.get('action') === 'ergebnis'),
+      karte.getByRole('button', { name: 'Speichern', exact: true }).click(),
+    ]);
+    assert.equal(konflikt.status(), 409);
+    await sichtbar(page.getByText(/auf einem anderen Gerät geändert/));
+    await sichtbar(page.getByRole('heading', { name: 'Browser Konflikt geändert', exact: true }));
+    await karte.locator('[name="punkteA"]').fill('2'); await karte.locator('[name="punkteB"]').fill('1');
+    await mutation(page, 'ergebnis', () => karte.getByRole('button', { name: 'Speichern', exact: true }).click());
+    await sichtbar(karte.getByText(/^Sätze 2:1/));
+  }));
+
 test('Browser: Schach auslosen, Remis korrigieren, Spieltag abschließen und Historie öffnen', { timeout: 90000 }, () =>
   imBrowser('schach', false, async page => {
     await anmelden(page);

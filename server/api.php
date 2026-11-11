@@ -179,13 +179,19 @@ function ungespielteKoTurniereUmstellen(array &$turniere): void
         foreach ($turnier['runden'] as $runde) foreach ($runde as $spiel) {
             if (($spiel['punkteA'] ?? null) !== null || ($spiel['punkteB'] ?? null) !== null) continue 3;
         }
-        $neu = neuesTurnier([
-            'titel' => $turnier['titel'], 'modus' => 'ko', 'koSchema' => 'kompakt',
-            'gewinnsaetze' => $turnier['gewinnsaetze'] ?? 3,
-            'satzweise' => $turnier['satzweise'] ?? false,
-            'teilnehmer' => $turnier['teilnehmer'],
-            'anzahlTische' => $turnier['anzahlTische'] ?? null,
-        ], $turnier['id']);
+        // Ein Altturnier, das heutige Regeln nicht mehr erfüllt, bleibt unverändert, statt das Laden aller Turniere zu verhindern.
+        try {
+            $neu = neuesTurnier([
+                'titel' => $turnier['titel'], 'modus' => 'ko', 'koSchema' => 'kompakt',
+                'gewinnsaetze' => $turnier['gewinnsaetze'] ?? 3,
+                'satzweise' => $turnier['satzweise'] ?? false,
+                'teilnehmer' => $turnier['teilnehmer'],
+                'anzahlTische' => $turnier['anzahlTische'] ?? null,
+            ], $turnier['id']);
+        } catch (ApiError $error) {
+            error_log("K.-o.-Turnier {$turnier['id']} nicht umgestellt: {$error->getMessage()}");
+            continue;
+        }
         $neu['version'] = $turnier['version'] + 1;
         $turnier = $neu;
     }
