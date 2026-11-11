@@ -246,6 +246,72 @@ const siegerurkundenDrucken = turnier => {
   fenster.focus();
 };
 
+// Tabelle und Kreuztabelle kommen jeweils auf eine eigene Seite. Jede Seite wird so skaliert, dass die Tabelle
+// vollständig darauf passt; Hoch- oder Querformat wird je Seite danach gewählt, was die größere Schrift ergibt.
+const tabellenDrucken = turnier => {
+  if (!darfBearbeiten()) return;
+  if (turnier.modus !== 'jeder-gegen-jeden') { window.print(); return; }
+  const fenster = window.open('', '_blank');
+  if (!fenster) { meldung('Das Druckfenster wurde vom Browser blockiert. Bitte Pop-ups für diese Seite erlauben.'); return; }
+  const stand = new Intl.DateTimeFormat('de-DE', { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
+  const seite = (titel, wrap) => {
+    // Eine Tabellenunterschrift würde die Tabelle auf die volle Textbreite ziehen; als Absatz bricht sie stattdessen um.
+    const caption = wrap.querySelector('caption'); caption?.remove();
+    return `
+    <section class="druckseite"><div class="druckinhalt">
+      <header><h1>${htmlSicher(turnier.titel)}</h1><p>${htmlSicher(titel)} · ${htmlSicher(sportartName(turnier))} · Stand ${htmlSicher(stand)}</p></header>
+      ${wrap.outerHTML}
+      ${caption ? `<p class="hinweis">${htmlSicher(caption.textContent)}</p>` : ''}
+    </div></section>`;
+  };
+  const kreuz = istSchach(turnier) ? el('div', undefined, 'kreuztabelle') : null;
+  kreuz?.append(renderKreuztabelle(turnier).querySelector('.table-wrap'));
+  const seiten = seite('Tabelle', renderTabelle(turnier)) + (kreuz ? seite('Kreuztabelle', kreuz) : '');
+  const stylesheet = new URL('styles.css', import.meta.url).href;
+  fenster.document.write(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Tabellen – ${htmlSicher(turnier.titel)}</title>
+    <link rel="stylesheet" href="${htmlSicher(stylesheet)}">
+    <style>
+      /* Ohne Seitenrand druckt der Browser keine Kopf- und Fußzeile (sonst stünde dort „about:blank“); der Rand steckt im Innenabstand. */
+      @page { size: A4 portrait; margin: 0; }
+      @page quer { size: A4 landscape; margin: 0; }
+      body { margin: 0; padding: 1rem 0; background: #e8efed; }
+      .aktionen { position: fixed; z-index: 2; top: 1rem; right: 1rem; }
+      .aktionen button { padding: .7rem 1rem; color: white; background: #0f766e; border: 0; border-radius: 8px; font-weight: 700; cursor: pointer; }
+      .druckseite { box-sizing: border-box; width: 210mm; height: 296mm; padding: 10mm; margin: 0 auto 1rem; overflow: hidden; background: white; break-after: page; }
+      .druckseite.quer { width: 297mm; height: 209mm; page: quer; }
+      .druckseite:last-of-type { break-after: auto; }
+      .druckinhalt { width: max-content; transform-origin: top left; }
+      .druckinhalt header { margin-bottom: .8rem; }
+      /* Bildunterschrift und Kopf richten sich nach der Tabellenbreite, statt sie zu verbreitern. */
+      .druckinhalt header, .druckinhalt .hinweis { contain: inline-size; }
+      .druckinhalt .hinweis { margin: .5rem 0 0; color: #526b67; font-size: .85rem; }
+      .druckinhalt header h1 { margin: 0 0 .2rem; font-size: 1.6rem; }
+      .druckinhalt header p { margin: 0; color: #526b67; }
+      .table-wrap { overflow: visible; margin: 0; }
+      /* Prozentangaben (Mindestbreite, 1 %-Rangspalte) würden die Tabelle im max-content-Rahmen beliebig breit machen. */
+      .druckinhalt .rangtabelle { min-width: 560px; }
+      .druckinhalt .rangtabelle .rang { width: auto; }
+      .kreuztabelle { margin: 0; }
+      .kreuztabelle tbody .name { position: static; }
+      table { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      tr, td, th { break-inside: avoid; }
+      @media print { body { padding: 0; background: white; } .aktionen { display: none; } .druckseite { margin: 0; } }
+    </style></head><body><div class="aktionen"><button type="button" onclick="window.print()">Drucken / als PDF speichern</button></div>${seiten}
+    <script>
+      const mm = 96 / 25.4;
+      const anpassen = () => document.querySelectorAll('.druckseite').forEach(seite => {
+        const inhalt = seite.firstElementChild; inhalt.style.transform = '';
+        const faktor = (breite, hoehe) => Math.min(1.4, breite * mm / inhalt.offsetWidth, hoehe * mm / inhalt.offsetHeight);
+        const hoch = faktor(190, 276), quer = faktor(277, 189);
+        seite.classList.toggle('quer', quer > hoch);
+        inhalt.style.transform = 'scale(' + Math.max(hoch, quer) + ')';
+      });
+      addEventListener('load', anpassen);
+    <\/script></body></html>`);
+  fenster.document.close();
+  fenster.focus();
+};
+
 const formularIstSchach = () => form.elements.sportart.value === 'schach';
 const teilnehmerMinimum = () => formularIstSchach() ? 2 : 5;
 const aktualisiereAnzahl = () => { $('anzahl').textContent = `${paare.children.length} ${formularIstSchach() ? 'Spieler' : 'Doppelpaare'} · erlaubt: ${teilnehmerMinimum()} bis 32`; };
@@ -500,13 +566,46 @@ const spieltagAnsicht = (turnier, bearbeiten) => renderSchachSpieltag(turnier, {
   },
 });
 
+// Tabelle und Kreuztabelle stehen nebeneinander und werden verkleinert, bis sie in die Breite passen.
+// Würde die Schrift dadurch zu klein, stehen sie stattdessen untereinander.
+const beamerTabellenEinpassen = () => {
+  const block = details.querySelector('.beamer-tabellen');
+  if (!block) return;
+  const tabellen = [...block.querySelectorAll('table')];
+  const zeilen = tabelle => [...tabelle.rows];
+  block.style.zoom = ''; block.classList.remove('untereinander');
+  tabellen.forEach(tabelle => { tabelle.style.marginTop = ''; zeilen(tabelle).forEach(zeile => { zeile.style.height = ''; }); });
+  if (block.clientWidth / block.scrollWidth < .6) { block.classList.add('untereinander'); return; }
+  // Nebeneinander beginnen beide Tabellen auf gleicher Höhe und haben gleich hohe Zeilen, damit sich jede Zeile quer lesen lässt.
+  if (tabellen.length === 2) {
+    const [links, rechts] = tabellen.map(zeilen);
+    links.forEach((zeile, index) => {
+      const partner = rechts[index]; if (!partner) return;
+      const hoehe = `${Math.max(zeile.offsetHeight, partner.offsetHeight)}px`;
+      zeile.style.height = hoehe; partner.style.height = hoehe;
+    });
+    const [obenLinks, obenRechts] = tabellen.map(tabelle => tabelle.getBoundingClientRect().top);
+    tabellen[obenLinks < obenRechts ? 0 : 1].style.marginTop = `${Math.abs(obenLinks - obenRechts)}px`;
+  }
+  const faktor = block.clientWidth / block.scrollWidth;
+  if (faktor < 1) block.style.zoom = String(faktor);
+};
+addEventListener('resize', () => { if (state.beamer) beamerTabellenEinpassen(); });
+
 const renderBeamer = turnier => {
   const names = new Map(turnier.teilnehmer.map(item => [item.id, item.name]));
   const fortschritt = turnierFortschritt(turnier);
   const aktuell = aktuelleRundeIndex(turnier);
   details.className = 'panel beamer-panel';
   details.append(renderTurnierTitel(turnier), el('p', `${sportartName(turnier)} · ${modusName(turnier.modus)} · ${wertungsName(turnier)} · ${fortschritt.fertig} von ${fortschritt.gesamt} ${istSchach(turnier) ? 'Partien' : 'Spielen'} abgeschlossen`, 'muted'));
-  if (turnier.modus === 'jeder-gegen-jeden') details.append(el('h3', 'Tabelle'), renderTabelle(turnier));
+  if (turnier.modus === 'jeder-gegen-jeden') {
+    // Auf breiten Leinwänden stehen Tabelle und Kreuztabelle nebeneinander, sonst untereinander.
+    const tabellen = el('div', undefined, 'beamer-tabellen');
+    const tabelle = el('div'); tabelle.append(el('h3', 'Tabelle'), renderTabelle(turnier)); tabellen.append(tabelle);
+    if (istSchach(turnier)) tabellen.append(renderKreuztabelle(turnier));
+    details.append(tabellen);
+    beamerTabellenEinpassen();
+  }
   if (istSchach(turnier)) {
     const spieltag = spieltagAnsicht(turnier, false);
     if (spieltag) details.append(spieltag);
@@ -958,7 +1057,10 @@ const turnierLinkKopieren = async id => {
   } catch { window.prompt('Link zu diesem Turnier:', url.href); }
 };
 $('turnierLink').addEventListener('click', () => void turnierLinkKopieren(state.ausgewaehlt));
-$('drucken').addEventListener('click', () => { if (darfBearbeiten()) window.print(); });
+$('drucken').addEventListener('click', () => {
+  const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
+  if (turnier) tabellenDrucken(turnier);
+});
 $('siegerurkunden').addEventListener('click', () => {
   const turnier = state.turniere.find(item => item.id === state.ausgewaehlt);
   if (turnier) siegerurkundenDrucken(turnier);

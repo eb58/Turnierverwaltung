@@ -25,7 +25,8 @@ Gemeinsame Funktionen:
 - Optionale Tisch- bzw. Brettanzahl mit Zuordnung zu Spielblöcken und Tischen/Brettern
 - Öffentliche Zuschauer- und Beameransicht mit automatischer Aktualisierung
 - Direkte Links zu einzelnen Turnieren
-- Druckansicht und Urkunden für die Plätze 1 bis 3; beim Doppel für beide Spieler
+- Druck bzw. PDF-Export von Tabelle und Kreuztabelle, jeweils vollständig auf einer Seite
+- Urkunden für die Plätze 1 bis 3; beim Doppel für beide Spieler
 - JSON-Export und -Import einzelner Turniere
 - Automatische Sicherungen mit Vorschau und Wiederherstellung, auch für gelöschte Turniere
 - Versionsprüfung zum Schutz vor dem Überschreiben paralleler Änderungen
@@ -97,7 +98,9 @@ Ein Turnier ohne eigene PIN kann nur die Gesamtverwaltung bearbeiten. Eine Sitzu
 
 Die Berechtigungen werden bei jeder Aktion serverseitig geprüft. Beameransichten bleiben schreibgeschützt. Nach acht Stunden ohne Aktivität läuft die Anmeldung ab. Eine PIN-Änderung macht andere Sitzungen mit dieser PIN ungültig.
 
-Die Funktionen stehen in der linken Seitenleiste. Am Desktop lässt sie sich zu einer Symbolleiste verkleinern; der Browser merkt sich diesen Zustand. Auf schmalen Bildschirmen öffnet die Menütaste die Navigation. Beim Drucken und in der Beameransicht wird die Seitenleiste ausgeblendet.
+Die Funktionen stehen in der linken Seitenleiste. Am Desktop lässt sie sich zu einer Symbolleiste verkleinern; der Browser merkt sich diesen Zustand. Auf schmalen Bildschirmen öffnet die Menütaste die Navigation. In der Beameransicht wird die Seitenleiste ausgeblendet.
+
+„Tabellen drucken / PDF“ öffnet ein Druckfenster mit der Tabelle und bei Schach zusätzlich der Kreuztabelle, jede auf einer eigenen A4-Seite. Jede Tabelle wird so skaliert, dass sie ohne Umbruch vollständig auf ihre Seite passt; Hoch- oder Querformat wird je Seite automatisch gewählt. Im Druckdialog des Browsers lässt sich als Ziel „Als PDF speichern“ wählen. Bei K.-o.-Turnieren wird wie bisher die Seite gedruckt.
 
 ## Turnierbetrieb
 
@@ -151,7 +154,7 @@ http://localhost:8001/?turnier=4&beamer=1
 
 Mit `?turnier=4` lädt und zeigt die Anwendung ausschließlich dieses Turnier. Turnierauswahl, Neuanlage, Import und turnierübergreifender Sicherungsverlauf sind ausgeblendet. Anmeldung, Ergebniserfassung, Tagesauslosung, Export und Beameransicht bleiben entsprechend den Berechtigungen verfügbar. Ohne den Parameter erscheint die normale Turnierauswahl.
 
-Sichtbare Zuschauer- und Beameransichten aktualisieren sich alle 15 Sekunden automatisch. Ein vorab ausgeloster Schachspieltag erscheint dort erst ab seinem Datum; die Turnierleitung sieht ihn sofort.
+Bei Schachturnieren zeigt die Beameransicht Tabelle und Kreuztabelle nebeneinander und verkleinert beide, bis sie in die Bildschirmbreite passen; auf schmalen Bildschirmen stehen sie untereinander. Sichtbare Zuschauer- und Beameransichten aktualisieren sich alle 15 Sekunden automatisch. Ein vorab ausgeloster Schachspieltag erscheint dort erst ab seinem Datum; die Turnierleitung sieht ihn sofort.
 
 ## Datenhaltung und Sicherungen
 

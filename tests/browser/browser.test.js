@@ -258,6 +258,26 @@ test('Browser: Versionskonflikt lädt automatisch den aktuellen Stand', { timeou
     await sichtbar(karte.getByText(/^Sätze 2:1/));
   }));
 
+test('Browser: Beamer zeigt Kreuztabelle, Druck gibt Tabelle und Kreuztabelle je auf einer Seite aus', { timeout: 60000 }, () =>
+  imBrowser('beamer-druck', false, async (page, context) => {
+    await anmelden(page);
+    const turnier = await anlegen(page, 'schach', 6, 'Browser Druck');
+    await page.goto(`${basisUrl}/?turnier=${turnier.id}&beamer=1`);
+    await sichtbar(page.locator('.beamer-tabellen .rangtabelle'));
+    await sichtbar(page.locator('.beamer-tabellen .kreuztabelle table'));
+    await page.goto(`${basisUrl}/?turnier=${turnier.id}`);
+    await navigation(page);
+    const [druck] = await Promise.all([context.waitForEvent('page'), page.locator('#drucken').click()]);
+    await druck.waitForLoadState('load');
+    await druck.waitForFunction(() => document.querySelector('.druckinhalt')?.style.transform);
+    const seiten = await druck.evaluate(() => [...document.querySelectorAll('.druckseite')].map(seite => {
+      const aussen = seite.getBoundingClientRect(), innen = seite.firstElementChild.getBoundingClientRect();
+      return { tabelle: seite.querySelector('table').className, passt: innen.right <= aussen.right + 1 && innen.bottom <= aussen.bottom + 1 };
+    }));
+    assert.deepEqual(seiten, [{ tabelle: 'rangtabelle', passt: true }, { tabelle: '', passt: true }]);
+    await druck.close();
+  }));
+
 test('Browser: Schach auslosen, Remis korrigieren, Spieltag abschließen und Historie öffnen', { timeout: 90000 }, () =>
   imBrowser('schach', false, async page => {
     await anmelden(page);
