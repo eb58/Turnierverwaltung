@@ -119,10 +119,8 @@ const zugangAktualisieren = () => {
   // Ohne Turnier-Link und ohne Anmeldung gibt es nichts zu sehen außer dem Anmelden-Button.
   document.body.classList.toggle('nur-anmeldung', !einzelAnsicht && !state.leitung.angemeldet);
   document.body.classList.toggle('kein-superadmin', !istSuperadmin());
-  for (const id of ['drucken', 'exportieren']) {
-    $(id).dataset.gesperrt = String(!darfBearbeiten());
-    $(id).disabled = state.busy || !darfBearbeiten();
-  }
+  $('exportieren').dataset.gesperrt = String(!darfBearbeiten());
+  $('exportieren').disabled = state.busy || !darfBearbeiten();
   $('leitungsStatus').textContent = istSuperadmin() ? 'Als Gesamtverwaltung angemeldet' : darfBearbeiten() ? 'Als Turnierleitung angemeldet'
     : state.leitung.angemeldet ? 'Für dieses Turnier nur Zuschaueransicht' : 'Zuschaueransicht';
   $('leitungAnmelden').hidden = darfBearbeiten();
@@ -249,7 +247,6 @@ const siegerurkundenDrucken = turnier => {
 // Tabelle und Kreuztabelle kommen jeweils auf eine eigene Seite. Jede Seite wird so skaliert, dass die Tabelle
 // vollständig darauf passt; Hoch- oder Querformat wird je Seite danach gewählt, was die größere Schrift ergibt.
 const tabellenDrucken = turnier => {
-  if (!darfBearbeiten()) return;
   if (turnier.modus !== 'jeder-gegen-jeden') { window.print(); return; }
   const fenster = window.open('', '_blank');
   if (!fenster) { meldung('Das Druckfenster wurde vom Browser blockiert. Bitte Pop-ups für diese Seite erlauben.'); return; }
